@@ -23,3 +23,8 @@ func (m *LogMailer) SendPasswordReset(_ context.Context, to, link string) error 
 	m.logger.Printf("[mail] password-reset to=%s link=%s", to, link)
 	return nil
 }
+
+func (m *LogMailer) SendWorkspaceInvite(_ context.Context, to, workspaceName, link string) error {
+	m.logger.Printf("[mail] workspace-invite to=%s workspace=%q link=%s", to, workspaceName, link)
+	return nil
+}

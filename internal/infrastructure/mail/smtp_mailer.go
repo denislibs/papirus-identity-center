@@ -36,3 +36,7 @@ func (m *SMTPMailer) SendVerification(_ context.Context, to, link string) error 
 func (m *SMTPMailer) SendPasswordReset(_ context.Context, to, link string) error {
 	return m.send(to, "Reset your password", "Reset your password: "+link)
 }
+
+func (m *SMTPMailer) SendWorkspaceInvite(_ context.Context, to, workspaceName, link string) error {
+	return m.send(to, "You're invited to "+workspaceName, "Join "+workspaceName+": "+link)
+}
