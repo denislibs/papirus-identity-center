@@ -38,14 +38,20 @@ func (h *HubAuthHandlers) Register(r chi.Router) {
 	r.Get("/auth/logout", h.logout)
 }
 
-func randToken() string {
+func randToken() (string, error) {
 	b := make([]byte, 24)
-	_, _ = rand.Read(b)
-	return hex.EncodeToString(b)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(b), nil
 }
 
 func (h *HubAuthHandlers) login(w http.ResponseWriter, r *http.Request) {
-	state := randToken()
+	state, err := randToken()
+	if err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
 	http.SetCookie(w, &http.Cookie{
 		Name: stateCookie, Value: state, Path: "/", HttpOnly: true,
 		SameSite: http.SameSiteLaxMode, MaxAge: 300,

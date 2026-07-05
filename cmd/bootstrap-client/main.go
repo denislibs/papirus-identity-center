@@ -58,7 +58,7 @@ func main() {
 	hub := ory.NewOAuth2Client()
 	hub.SetClientId("hub")
 	hub.SetClientName("Account Hub")
-	hub.SetGrantTypes([]string{"authorization_code", "refresh_token"})
+	hub.SetGrantTypes([]string{"authorization_code"})
 	hub.SetResponseTypes([]string{"code"})
 	hub.SetRedirectUris([]string{hubRedirect})
 	hub.SetScope("openid profile")
