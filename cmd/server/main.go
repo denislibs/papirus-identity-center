@@ -6,6 +6,7 @@ import (
 
 	"github.com/papyrus/platform/internal/config"
 	"github.com/papyrus/platform/internal/infrastructure/di"
+	"github.com/papyrus/platform/internal/infrastructure/postgres"
 )
 
 func main() {
@@ -14,6 +15,10 @@ func main() {
 	cfg, err := config.Load()
 	if err != nil {
 		log.Fatalf("config: %v", err)
+	}
+
+	if err := postgres.RunMigrations(cfg.DB.DSN()); err != nil {
+		log.Fatalf("migrations: %v", err)
 	}
 
 	app, err := di.InitializeApp(ctx, cfg)

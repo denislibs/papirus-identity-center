@@ -15,6 +15,8 @@ services:
       - REDIS_PORT=6379
       - HYDRA_ADMIN_URL=http://hydra:4445
       - HYDRA_PUBLIC_URL=http://hydra:4444
+      - BASE_URL=http://localhost:8090
+      - MAIL_MODE=log
     depends_on:
       platform-postgres:
         condition: service_healthy

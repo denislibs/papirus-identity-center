@@ -32,11 +32,22 @@ type HydraConfig struct {
 	PublicURL string
 }
 
+type MailConfig struct {
+	Mode     string // "log" (default) or "smtp"
+	Host     string
+	Port     string
+	User     string
+	Password string
+	From     string
+}
+
 type Config struct {
-	Port  string
-	DB    DBConfig
-	Redis RedisConfig
-	Hydra HydraConfig
+	Port    string
+	DB      DBConfig
+	Redis   RedisConfig
+	Hydra   HydraConfig
+	BaseURL string
+	Mail    MailConfig
 }
 
 func Load() (Config, error) {
@@ -64,5 +75,22 @@ func Load() (Config, error) {
 		cfg.Redis.Port == "" {
 		return Config{}, fmt.Errorf("config: missing required environment variables")
 	}
+
+	cfg.BaseURL = os.Getenv("BASE_URL")
+	if cfg.BaseURL == "" {
+		cfg.BaseURL = "http://localhost:" + cfg.Port
+	}
+	cfg.Mail = MailConfig{
+		Mode:     os.Getenv("MAIL_MODE"),
+		Host:     os.Getenv("SMTP_HOST"),
+		Port:     os.Getenv("SMTP_PORT"),
+		User:     os.Getenv("SMTP_USER"),
+		Password: os.Getenv("SMTP_PASSWORD"),
+		From:     os.Getenv("SMTP_FROM"),
+	}
+	if cfg.Mail.Mode == "" {
+		cfg.Mail.Mode = "log"
+	}
+
 	return cfg, nil
 }

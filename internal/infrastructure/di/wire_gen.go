@@ -9,12 +9,19 @@ package di
 import (
 	"context"
 	"github.com/jackc/pgx/v5/pgxpool"
+	identity2 "github.com/papyrus/platform/internal/application/identity"
 	"github.com/papyrus/platform/internal/config"
+	"github.com/papyrus/platform/internal/domain/identity"
 	"github.com/papyrus/platform/internal/infrastructure/httpserver"
+	"github.com/papyrus/platform/internal/infrastructure/mail"
 	"github.com/papyrus/platform/internal/infrastructure/postgres"
 	redis2 "github.com/papyrus/platform/internal/infrastructure/redis"
+	"github.com/papyrus/platform/internal/infrastructure/security"
+	http2 "github.com/papyrus/platform/internal/presentation/http"
 	"github.com/redis/go-redis/v9"
+	"log"
 	"net/http"
+	"os"
 )
 
 // Injectors from wire.go:
@@ -29,7 +36,12 @@ func InitializeApp(ctx context.Context, cfg config.Config) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
-	server := provideServer(cfg)
+	userRepository := provideUserRepo(pool)
+	passwordHasher := provideHasher()
+	verificationTokens := provideTokens(client)
+	mailer := provideMailer(cfg)
+	identityHandlers := provideIdentityHandlers(cfg, userRepository, passwordHasher, verificationTokens, mailer)
+	server := provideServer(cfg, identityHandlers)
 	app := &App{
 		Config: cfg,
 		DB:     pool,
@@ -57,6 +69,31 @@ func provideRedis(ctx context.Context, cfg config.Config) (*redis.Client, error)
 	return redis2.Connect(ctx, cfg.Redis.Addr())
 }
 
-func provideServer(cfg config.Config) *http.Server {
-	return httpserver.NewServer(":"+cfg.Port, httpserver.NewRouter())
+func provideUserRepo(pool *pgxpool.Pool) identity.UserRepository {
+	return postgres.NewUserRepository(pool)
+}
+
+func provideTokens(client *redis.Client) identity.VerificationTokens {
+	return redis2.NewTokenStore(client)
+}
+
+func provideHasher() identity.PasswordHasher {
+	return security.NewBcryptHasher(0)
+}
+
+func provideMailer(cfg config.Config) identity.Mailer {
+	if cfg.Mail.Mode == "smtp" {
+		return mail.NewSMTPMailer(cfg.Mail.Host, cfg.Mail.Port, cfg.Mail.User, cfg.Mail.Password, cfg.Mail.From)
+	}
+	return mail.NewLogMailer(log.New(os.Stdout, "", log.LstdFlags))
+}
+
+func provideIdentityHandlers(cfg config.Config, users identity.UserRepository,
+	hasher identity.PasswordHasher, tokens identity.VerificationTokens,
+	mailer identity.Mailer) *http2.IdentityHandlers {
+	return http2.NewIdentityHandlers(identity2.NewRegisterUser(users, hasher, tokens, mailer, cfg.BaseURL), identity2.NewVerifyEmail(users, tokens), identity2.NewRequestPasswordReset(users, tokens, mailer, cfg.BaseURL), identity2.NewResetPassword(users, hasher, tokens))
+}
+
+func provideServer(cfg config.Config, identity3 *http2.IdentityHandlers) *http.Server {
+	return httpserver.NewServer(":"+cfg.Port, httpserver.NewRouter(identity3))
 }
