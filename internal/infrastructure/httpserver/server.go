@@ -14,7 +14,7 @@ import (
 func NewRouter(identity *apphttp.IdentityHandlers, auth *apphttp.AuthHandlers,
 	sessions *apphttp.SessionHandlers, hydra domainidentity.HydraClient,
 	hubAuth *apphttp.HubAuthHandlers, hub *apphttp.HubHandlers, hubStore domainidentity.HubSessionStore,
-	public *apphttp.PublicPageHandlers) http.Handler {
+	public *apphttp.PublicPageHandlers, wsHandlers *apphttp.WorkspaceHandlers) http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Recoverer)
@@ -29,6 +29,7 @@ func NewRouter(identity *apphttp.IdentityHandlers, auth *apphttp.AuthHandlers,
 	r.Group(func(pr chi.Router) {
 		pr.Use(apphttp.RequireAuth(hydra))
 		sessions.Register(pr)
+		wsHandlers.Register(pr)
 	})
 
 	// Hub pages (cookie session).

@@ -15,8 +15,10 @@ import (
 	goredis "github.com/redis/go-redis/v9"
 
 	appidentity "github.com/denislibs/papirus-identity-center/internal/application/identity"
+	appws "github.com/denislibs/papirus-identity-center/internal/application/workspace"
 	"github.com/denislibs/papirus-identity-center/internal/config"
 	domainidentity "github.com/denislibs/papirus-identity-center/internal/domain/identity"
+	domainws "github.com/denislibs/papirus-identity-center/internal/domain/workspace"
 	"github.com/denislibs/papirus-identity-center/internal/infrastructure/httpserver"
 	"github.com/denislibs/papirus-identity-center/internal/infrastructure/hubauth"
 	"github.com/denislibs/papirus-identity-center/internal/infrastructure/hydra"
@@ -133,11 +135,41 @@ func providePublicPages(cfg config.Config, users domainidentity.UserRepository,
 	)
 }
 
+func provideWorkspaceRepo(pool *pgxpool.Pool) domainws.WorkspaceRepository {
+	return pgc.NewWorkspaceRepository(pool)
+}
+
+func provideMemberRepo(pool *pgxpool.Pool) domainws.MemberRepository {
+	return pgc.NewMemberRepository(pool)
+}
+
+func provideInviteRepo(pool *pgxpool.Pool) domainws.InviteRepository {
+	return pgc.NewInviteRepository(pool)
+}
+
+func provideWorkspaceMailer(cfg config.Config) domainws.WorkspaceMailer {
+	if cfg.Mail.Mode == "smtp" {
+		return mail.NewSMTPMailer(cfg.Mail.Host, cfg.Mail.Port, cfg.Mail.User, cfg.Mail.Password, cfg.Mail.From)
+	}
+	return mail.NewLogMailer(log.New(os.Stdout, "", log.LstdFlags))
+}
+
+func provideWorkspaceHandlers(cfg config.Config, ws domainws.WorkspaceRepository, mem domainws.MemberRepository,
+	inv domainws.InviteRepository, mailer domainws.WorkspaceMailer) *apphttp.WorkspaceHandlers {
+	return apphttp.NewWorkspaceHandlers(
+		appws.NewCreateWorkspace(ws, mem),
+		appws.NewListMyWorkspaces(ws),
+		appws.NewListMembers(mem),
+		appws.NewInviteMember(ws, mem, inv, mailer, cfg.BaseURL),
+		appws.NewAcceptInvite(inv, mem),
+	)
+}
+
 func provideServer(cfg config.Config, identity *apphttp.IdentityHandlers, auth *apphttp.AuthHandlers,
 	sessions *apphttp.SessionHandlers, hydraClient domainidentity.HydraClient,
 	hubAuth *apphttp.HubAuthHandlers, hub *apphttp.HubHandlers, hubStore domainidentity.HubSessionStore,
-	public *apphttp.PublicPageHandlers) *http.Server {
-	return httpserver.NewServer(":"+cfg.Port, httpserver.NewRouter(identity, auth, sessions, hydraClient, hubAuth, hub, hubStore, public))
+	public *apphttp.PublicPageHandlers, wsHandlers *apphttp.WorkspaceHandlers) *http.Server {
+	return httpserver.NewServer(":"+cfg.Port, httpserver.NewRouter(identity, auth, sessions, hydraClient, hubAuth, hub, hubStore, public, wsHandlers))
 }
 
 // InitializeApp builds the full application graph.
@@ -159,6 +191,11 @@ func InitializeApp(ctx context.Context, cfg config.Config) (*App, error) {
 		provideHubAuthHandlers,
 		provideHubHandlers,
 		providePublicPages,
+		provideWorkspaceRepo,
+		provideMemberRepo,
+		provideInviteRepo,
+		provideWorkspaceMailer,
+		provideWorkspaceHandlers,
 		provideServer,
 		wire.Struct(new(App), "*"),
 	)

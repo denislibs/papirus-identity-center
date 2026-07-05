@@ -9,8 +9,10 @@ package di
 import (
 	"context"
 	identity2 "github.com/denislibs/papirus-identity-center/internal/application/identity"
+	workspace2 "github.com/denislibs/papirus-identity-center/internal/application/workspace"
 	"github.com/denislibs/papirus-identity-center/internal/config"
 	"github.com/denislibs/papirus-identity-center/internal/domain/identity"
+	"github.com/denislibs/papirus-identity-center/internal/domain/workspace"
 	"github.com/denislibs/papirus-identity-center/internal/infrastructure/httpserver"
 	"github.com/denislibs/papirus-identity-center/internal/infrastructure/hubauth"
 	"github.com/denislibs/papirus-identity-center/internal/infrastructure/hydra"
@@ -53,7 +55,12 @@ func InitializeApp(ctx context.Context, cfg config.Config) (*App, error) {
 	hubAuthHandlers := provideHubAuthHandlers(hubOAuth, hubSessionStore)
 	hubHandlers := provideHubHandlers(userRepository, sessionRepository, hydraClient)
 	publicPageHandlers := providePublicPages(cfg, userRepository, passwordHasher, verificationTokens, mailer)
-	server := provideServer(cfg, identityHandlers, authHandlers, sessionHandlers, hydraClient, hubAuthHandlers, hubHandlers, hubSessionStore, publicPageHandlers)
+	workspaceRepository := provideWorkspaceRepo(pool)
+	memberRepository := provideMemberRepo(pool)
+	inviteRepository := provideInviteRepo(pool)
+	workspaceMailer := provideWorkspaceMailer(cfg)
+	workspaceHandlers := provideWorkspaceHandlers(cfg, workspaceRepository, memberRepository, inviteRepository, workspaceMailer)
+	server := provideServer(cfg, identityHandlers, authHandlers, sessionHandlers, hydraClient, hubAuthHandlers, hubHandlers, hubSessionStore, publicPageHandlers, workspaceHandlers)
 	app := &App{
 		Config: cfg,
 		DB:     pool,
@@ -147,9 +154,33 @@ func providePublicPages(cfg config.Config, users identity.UserRepository,
 	return http2.NewPublicPageHandlers(identity2.NewRegisterUser(users, hasher, tokens, mailer, cfg.BaseURL), identity2.NewVerifyEmail(users, tokens), identity2.NewRequestPasswordReset(users, tokens, mailer, cfg.BaseURL), identity2.NewResetPassword(users, hasher, tokens), http2.MustLoadTemplates())
 }
 
+func provideWorkspaceRepo(pool *pgxpool.Pool) workspace.WorkspaceRepository {
+	return postgres.NewWorkspaceRepository(pool)
+}
+
+func provideMemberRepo(pool *pgxpool.Pool) workspace.MemberRepository {
+	return postgres.NewMemberRepository(pool)
+}
+
+func provideInviteRepo(pool *pgxpool.Pool) workspace.InviteRepository {
+	return postgres.NewInviteRepository(pool)
+}
+
+func provideWorkspaceMailer(cfg config.Config) workspace.WorkspaceMailer {
+	if cfg.Mail.Mode == "smtp" {
+		return mail.NewSMTPMailer(cfg.Mail.Host, cfg.Mail.Port, cfg.Mail.User, cfg.Mail.Password, cfg.Mail.From)
+	}
+	return mail.NewLogMailer(log.New(os.Stdout, "", log.LstdFlags))
+}
+
+func provideWorkspaceHandlers(cfg config.Config, ws workspace.WorkspaceRepository, mem workspace.MemberRepository,
+	inv workspace.InviteRepository, mailer workspace.WorkspaceMailer) *http2.WorkspaceHandlers {
+	return http2.NewWorkspaceHandlers(workspace2.NewCreateWorkspace(ws, mem), workspace2.NewListMyWorkspaces(ws), workspace2.NewListMembers(mem), workspace2.NewInviteMember(ws, mem, inv, mailer, cfg.BaseURL), workspace2.NewAcceptInvite(inv, mem))
+}
+
 func provideServer(cfg config.Config, identity3 *http2.IdentityHandlers, auth *http2.AuthHandlers,
 	sessions *http2.SessionHandlers, hydraClient identity.HydraClient,
 	hubAuth *http2.HubAuthHandlers, hub *http2.HubHandlers, hubStore identity.HubSessionStore,
-	public *http2.PublicPageHandlers) *http.Server {
-	return httpserver.NewServer(":"+cfg.Port, httpserver.NewRouter(identity3, auth, sessions, hydraClient, hubAuth, hub, hubStore, public))
+	public *http2.PublicPageHandlers, wsHandlers *http2.WorkspaceHandlers) *http.Server {
+	return httpserver.NewServer(":"+cfg.Port, httpserver.NewRouter(identity3, auth, sessions, hydraClient, hubAuth, hub, hubStore, public, wsHandlers))
 }
