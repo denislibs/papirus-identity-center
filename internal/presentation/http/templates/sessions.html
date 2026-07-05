@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Sessions — Papyrus</title></head>
+<body>
+  <h1>Active sessions</h1>
+  <ul>
+    {{range .Sessions}}
+    <li>
+      <span>{{.DeviceName}} — {{.IP}}</span>
+      <form method="post" action="/account/sessions/{{.ID}}/terminate" style="display:inline">
+        <button type="submit">Terminate</button>
+      </form>
+    </li>
+    {{else}}
+    <li>No active sessions</li>
+    {{end}}
+  </ul>
+  <form method="post" action="/account/sessions/logout-all">
+    <button type="submit">Log out everywhere</button>
+  </form>
+  <p><a href="/account">Back to account</a></p>
+</body>
+</html>
