@@ -1,0 +1,50 @@
+package postgres
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/require"
+	"github.com/testcontainers/testcontainers-go"
+	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
+	"github.com/testcontainers/testcontainers-go/wait"
+)
+
+func TestRunMigrationsCreatesUsers(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in -short mode")
+	}
+	ctx := context.Background()
+
+	container, err := tcpostgres.Run(ctx,
+		"postgres:16-alpine",
+		tcpostgres.WithDatabase("platform"),
+		tcpostgres.WithUsername("platform"),
+		tcpostgres.WithPassword("platform"),
+		testcontainers.WithWaitStrategy(
+			wait.ForLog("database system is ready to accept connections").
+				WithOccurrence(2).WithStartupTimeout(60*time.Second)),
+	)
+	require.NoError(t, err)
+	defer func() { _ = container.Terminate(ctx) }()
+
+	dsn, err := container.ConnectionString(ctx, "sslmode=disable")
+	require.NoError(t, err)
+
+	require.NoError(t, RunMigrations(dsn))
+
+	// running again must be a no-op (idempotent)
+	require.NoError(t, RunMigrations(dsn))
+
+	pool, err := Connect(ctx, dsn)
+	require.NoError(t, err)
+	defer pool.Close()
+
+	var exists bool
+	err = pool.QueryRow(ctx,
+		`SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'users')`).
+		Scan(&exists)
+	require.NoError(t, err)
+	require.True(t, exists)
+}
