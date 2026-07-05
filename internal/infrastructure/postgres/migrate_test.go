@@ -43,6 +43,29 @@ func TestRunMigrationsCreatesSessions(t *testing.T) {
 	require.True(t, exists)
 }
 
+func TestRunMigrationsCreatesWorkspaces(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in -short mode")
+	}
+	ctx := context.Background()
+	container, err := tcpostgres.Run(ctx, "postgres:16-alpine",
+		tcpostgres.WithDatabase("platform"), tcpostgres.WithUsername("platform"), tcpostgres.WithPassword("platform"),
+		testcontainers.WithWaitStrategy(wait.ForLog("database system is ready to accept connections").WithOccurrence(2).WithStartupTimeout(60*time.Second)))
+	require.NoError(t, err)
+	defer func() { _ = container.Terminate(ctx) }()
+	dsn, err := container.ConnectionString(ctx, "sslmode=disable")
+	require.NoError(t, err)
+	require.NoError(t, RunMigrations(dsn))
+	pool, err := Connect(ctx, dsn)
+	require.NoError(t, err)
+	defer pool.Close()
+	for _, tbl := range []string{"workspaces", "workspace_members", "workspace_invites"} {
+		var exists bool
+		require.NoError(t, pool.QueryRow(ctx, `SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name=$1)`, tbl).Scan(&exists))
+		require.True(t, exists, tbl)
+	}
+}
+
 func TestRunMigrationsCreatesUsers(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in -short mode")
