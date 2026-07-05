@@ -45,6 +45,8 @@ func wsErr(w http.ResponseWriter, err error) {
 		writeJSON(w, http.StatusForbidden, map[string]string{"error": "forbidden"})
 	case errors.Is(err, domainws.ErrNotMember):
 		writeJSON(w, http.StatusForbidden, map[string]string{"error": "not a member"})
+	case errors.Is(err, domainws.ErrAlreadyMember):
+		writeJSON(w, http.StatusConflict, map[string]string{"error": "already a member"})
 	case errors.Is(err, domainws.ErrWorkspaceNotFound), errors.Is(err, domainws.ErrInviteNotFound):
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
 	default:

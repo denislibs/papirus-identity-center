@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/denislibs/papirus-identity-center/internal/domain/workspace"
@@ -74,6 +75,10 @@ func (r *MemberRepository) Create(ctx context.Context, m *workspace.Member) erro
 	_, err := r.pool.Exec(ctx, `INSERT INTO workspace_members (id, workspace_id, user_id, role, status, created_at) VALUES ($1,$2,$3,$4,$5,$6)`,
 		m.ID, m.WorkspaceID, m.UserID, m.Role, m.Status, m.CreatedAt)
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return workspace.ErrAlreadyMember
+		}
 		return fmt.Errorf("postgres: create member: %w", err)
 	}
 	return nil

@@ -62,3 +62,26 @@ func TestWorkspaceRepositories(t *testing.T) {
 	_, err = invRepo.FindByToken(ctx, "missing")
 	require.ErrorIs(t, err, workspace.ErrInviteNotFound)
 }
+
+func TestMemberRepositoryCreateDuplicateReturnsErrAlreadyMember(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in -short mode")
+	}
+	ctx, w := newMigratedPool(t)
+	userRepo := NewUserRepository(w.pool)
+	wsRepo := NewWorkspaceRepository(w.pool)
+	memRepo := NewMemberRepository(w.pool)
+
+	uid := "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+	require.NoError(t, userRepo.Create(ctx, &identity.User{ID: uid, Email: "dup-member@x.com", PasswordHash: "h", Locale: "en", Timezone: "UTC", CreatedAt: time.Now().UTC()}))
+
+	ws := &workspace.Workspace{ID: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", Name: "DupTest", Slug: "dup-test", CreatedBy: uid, CreatedAt: time.Now().UTC()}
+	require.NoError(t, wsRepo.Create(ctx, ws))
+
+	first := &workspace.Member{ID: "cccccccc-cccc-cccc-cccc-cccccccccccc", WorkspaceID: ws.ID, UserID: uid, Role: workspace.RoleOwner, Status: workspace.StatusActive, CreatedAt: time.Now().UTC()}
+	require.NoError(t, memRepo.Create(ctx, first))
+
+	second := &workspace.Member{ID: "dddddddd-dddd-dddd-dddd-dddddddddddd", WorkspaceID: ws.ID, UserID: uid, Role: workspace.RoleMember, Status: workspace.StatusActive, CreatedAt: time.Now().UTC()}
+	err := memRepo.Create(ctx, second)
+	require.ErrorIs(t, err, workspace.ErrAlreadyMember)
+}

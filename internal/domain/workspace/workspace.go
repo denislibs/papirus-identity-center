@@ -49,6 +49,7 @@ var (
 	ErrWorkspaceNotFound = errors.New("workspace: not found")
 	ErrInviteNotFound    = errors.New("workspace: invite not found or expired")
 	ErrNotMember         = errors.New("workspace: user is not a member")
+	ErrAlreadyMember     = errors.New("workspace: user is already a member")
 	ErrForbidden         = errors.New("workspace: insufficient role")
 	ErrInvalidName       = errors.New("workspace: invalid name")
 	ErrInvalidRole       = errors.New("workspace: invalid role")
