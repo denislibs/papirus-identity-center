@@ -7,6 +7,58 @@ import (
 	domain "github.com/papyrus/platform/internal/domain/identity"
 )
 
+// fakeHydra implements identity.HydraClient.
+type fakeHydra struct {
+	login         *domain.HydraLoginRequest
+	consent       *domain.HydraConsentRequest
+	acceptedSub   string
+	grantedScopes []string
+	redirect      string
+}
+
+func (f *fakeHydra) GetLoginRequest(_ context.Context, ch string) (*domain.HydraLoginRequest, error) {
+	if f.login == nil {
+		return &domain.HydraLoginRequest{Challenge: ch}, nil
+	}
+	f.login.Challenge = ch
+	return f.login, nil
+}
+func (f *fakeHydra) AcceptLoginRequest(_ context.Context, ch, sub string, _ bool) (string, error) {
+	f.acceptedSub = sub
+	return f.redirect, nil
+}
+func (f *fakeHydra) RejectLoginRequest(_ context.Context, ch, reason string) (string, error) {
+	return f.redirect, nil
+}
+func (f *fakeHydra) GetConsentRequest(_ context.Context, ch string) (*domain.HydraConsentRequest, error) {
+	if f.consent == nil {
+		return &domain.HydraConsentRequest{Challenge: ch, Client: domain.OAuthClientInfo{Trusted: true}}, nil
+	}
+	f.consent.Challenge = ch
+	return f.consent, nil
+}
+func (f *fakeHydra) AcceptConsentRequest(_ context.Context, ch string, scopes []string) (string, error) {
+	f.grantedScopes = scopes
+	return f.redirect, nil
+}
+
+// fakeSessions implements identity.SessionRepository (create-capturing only for these tests).
+type fakeSessions struct{ created []*domain.Session }
+
+func (f *fakeSessions) Create(_ context.Context, s *domain.Session) error {
+	f.created = append(f.created, s)
+	return nil
+}
+func (f *fakeSessions) FindByID(_ context.Context, id string) (*domain.Session, error) {
+	return nil, domain.ErrSessionNotFound
+}
+func (f *fakeSessions) ListActiveByUser(_ context.Context, _ string) ([]*domain.Session, error) {
+	return f.created, nil
+}
+func (f *fakeSessions) MarkEnded(_ context.Context, _ string) error           { return nil }
+func (f *fakeSessions) MarkEndedByHydraSID(_ context.Context, _ string) error { return nil }
+func (f *fakeSessions) MarkAllEndedByUser(_ context.Context, _ string) error  { return nil }
+
 type fakeUsers struct{ byID, byEmail map[string]*domain.User }
 
 func newFakeUsers() *fakeUsers {
