@@ -9,12 +9,16 @@ import (
 
 // fakeHydra implements identity.HydraClient.
 type fakeHydra struct {
-	login            *domain.HydraLoginRequest
-	consent          *domain.HydraConsentRequest
-	acceptedSub      string
-	grantedScopes    []string
-	consentRejected  bool
-	redirect         string
+	login             *domain.HydraLoginRequest
+	consent           *domain.HydraConsentRequest
+	acceptedSub       string
+	grantedScopes     []string
+	consentRejected   bool
+	redirect          string
+	revokedSubject    string
+	revokedSID        string
+	introspectActive  bool
+	introspectSubject string
 }
 
 func (f *fakeHydra) GetLoginRequest(_ context.Context, ch string) (*domain.HydraLoginRequest, error) {
@@ -45,6 +49,17 @@ func (f *fakeHydra) AcceptConsentRequest(_ context.Context, ch string, scopes []
 func (f *fakeHydra) RejectConsentRequest(_ context.Context, ch, reason string) (string, error) {
 	f.consentRejected = true
 	return f.redirect, nil
+}
+func (f *fakeHydra) RevokeLoginSessionsBySubject(_ context.Context, subject string) error {
+	f.revokedSubject = subject
+	return nil
+}
+func (f *fakeHydra) RevokeLoginSessionByID(_ context.Context, sid string) error {
+	f.revokedSID = sid
+	return nil
+}
+func (f *fakeHydra) IntrospectToken(_ context.Context, _ string) (bool, string, error) {
+	return f.introspectActive, f.introspectSubject, nil
 }
 
 // fakeSessions implements identity.SessionRepository (create-capturing only for these tests).

@@ -35,4 +35,10 @@ type HydraClient interface {
 	GetConsentRequest(ctx context.Context, challenge string) (*HydraConsentRequest, error)
 	AcceptConsentRequest(ctx context.Context, challenge string, grantScopes []string) (redirectTo string, err error)
 	RejectConsentRequest(ctx context.Context, challenge, reason string) (redirectTo string, err error)
+	// RevokeLoginSessionsBySubject terminates ALL of a subject's login sessions ("logout everywhere").
+	RevokeLoginSessionsBySubject(ctx context.Context, subject string) error
+	// RevokeLoginSessionByID terminates a single Hydra login session by its sid.
+	RevokeLoginSessionByID(ctx context.Context, sid string) error
+	// IntrospectToken validates an access token; returns active and the subject (user id).
+	IntrospectToken(ctx context.Context, token string) (active bool, subject string, err error)
 }

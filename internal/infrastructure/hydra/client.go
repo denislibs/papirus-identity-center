@@ -137,5 +137,39 @@ func (c *Client) RejectConsentRequest(ctx context.Context, challenge, reason str
 	return res.RedirectTo, nil
 }
 
+// RevokeLoginSessionsBySubject terminates all Hydra login sessions for a subject.
+func (c *Client) RevokeLoginSessionsBySubject(ctx context.Context, subject string) error {
+	_, err := c.api.OAuth2API.RevokeOAuth2LoginSessions(ctx).Subject(subject).Execute()
+	if err != nil {
+		return fmt.Errorf("hydra: revoke sessions by subject: %w", err)
+	}
+	return nil
+}
+
+// RevokeLoginSessionByID terminates a single Hydra login session by its sid.
+func (c *Client) RevokeLoginSessionByID(ctx context.Context, sid string) error {
+	_, err := c.api.OAuth2API.RevokeOAuth2LoginSessions(ctx).Sid(sid).Execute()
+	if err != nil {
+		return fmt.Errorf("hydra: revoke session by sid: %w", err)
+	}
+	return nil
+}
+
+// IntrospectToken validates an access token and returns whether it is active and the subject.
+func (c *Client) IntrospectToken(ctx context.Context, token string) (bool, string, error) {
+	res, _, err := c.api.OAuth2API.IntrospectOAuth2Token(ctx).Token(token).Execute()
+	if err != nil {
+		return false, "", fmt.Errorf("hydra: introspect token: %w", err)
+	}
+	if !res.Active {
+		return false, "", nil
+	}
+	subject := ""
+	if res.Sub != nil {
+		subject = *res.Sub
+	}
+	return true, subject, nil
+}
+
 // Compile-time assertion: Client must implement identity.HydraClient.
 var _ identity.HydraClient = (*Client)(nil)
