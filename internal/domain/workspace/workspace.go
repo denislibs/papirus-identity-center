@@ -33,6 +33,24 @@ type Member struct {
 	Role        string
 	Status      string
 	CreatedAt   time.Time
+	OrgUnitID  *string
+	PositionID *string
+}
+
+type OrgUnit struct {
+	ID          string
+	WorkspaceID string
+	ParentID    *string
+	Name        string
+	SortOrder   int
+	CreatedAt   time.Time
+}
+
+type Position struct {
+	ID          string
+	WorkspaceID string
+	Title       string
+	CreatedAt   time.Time
 }
 
 type Invite struct {
@@ -53,6 +71,9 @@ var (
 	ErrForbidden         = errors.New("workspace: insufficient role")
 	ErrInvalidName       = errors.New("workspace: invalid name")
 	ErrInvalidRole       = errors.New("workspace: invalid role")
+	ErrOrgUnitNotFound  = errors.New("workspace: org unit not found")
+	ErrPositionNotFound = errors.New("workspace: position not found")
+	ErrInvalidTitle     = errors.New("workspace: invalid title")
 )
 
 // CanManageMembers reports whether a role may invite/manage members.

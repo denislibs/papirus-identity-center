@@ -13,6 +13,20 @@ type MemberRepository interface {
 	Create(ctx context.Context, m *Member) error
 	Find(ctx context.Context, workspaceID, userID string) (*Member, error) // ErrNotMember
 	ListByWorkspace(ctx context.Context, workspaceID string) ([]*Member, error)
+	// Assign sets a member's org unit and position (either may be nil to clear).
+	Assign(ctx context.Context, workspaceID, userID string, orgUnitID, positionID *string) error
+}
+
+type OrgUnitRepository interface {
+	Create(ctx context.Context, u *OrgUnit) error
+	ListByWorkspace(ctx context.Context, workspaceID string) ([]*OrgUnit, error)
+	Exists(ctx context.Context, workspaceID, id string) (bool, error)
+}
+
+type PositionRepository interface {
+	Create(ctx context.Context, p *Position) error
+	ListByWorkspace(ctx context.Context, workspaceID string) ([]*Position, error)
+	Exists(ctx context.Context, workspaceID, id string) (bool, error)
 }
 
 type InviteRepository interface {
