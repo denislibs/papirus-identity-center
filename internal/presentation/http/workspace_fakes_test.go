@@ -121,6 +121,64 @@ func (f *fakeInvitesHTTP) MarkAccepted(_ context.Context, id string) error {
 	return nil
 }
 
+// fakeOrgUnitsHTTP is an in-memory OrgUnitRepository for http package tests.
+type fakeOrgUnitsHTTP struct{ list []*domainws.OrgUnit }
+
+func (f *fakeOrgUnitsHTTP) Create(_ context.Context, u *domainws.OrgUnit) error {
+	cp := *u
+	f.list = append(f.list, &cp)
+	return nil
+}
+
+func (f *fakeOrgUnitsHTTP) ListByWorkspace(_ context.Context, wsID string) ([]*domainws.OrgUnit, error) {
+	var out []*domainws.OrgUnit
+	for _, u := range f.list {
+		if u.WorkspaceID == wsID {
+			cp := *u
+			out = append(out, &cp)
+		}
+	}
+	return out, nil
+}
+
+func (f *fakeOrgUnitsHTTP) Exists(_ context.Context, wsID, id string) (bool, error) {
+	for _, u := range f.list {
+		if u.WorkspaceID == wsID && u.ID == id {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// fakePositionsHTTP is an in-memory PositionRepository for http package tests.
+type fakePositionsHTTP struct{ list []*domainws.Position }
+
+func (f *fakePositionsHTTP) Create(_ context.Context, p *domainws.Position) error {
+	cp := *p
+	f.list = append(f.list, &cp)
+	return nil
+}
+
+func (f *fakePositionsHTTP) ListByWorkspace(_ context.Context, wsID string) ([]*domainws.Position, error) {
+	var out []*domainws.Position
+	for _, p := range f.list {
+		if p.WorkspaceID == wsID {
+			cp := *p
+			out = append(out, &cp)
+		}
+	}
+	return out, nil
+}
+
+func (f *fakePositionsHTTP) Exists(_ context.Context, wsID, id string) (bool, error) {
+	for _, p := range f.list {
+		if p.WorkspaceID == wsID && p.ID == id {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 // fakeWSMailer is an in-memory WorkspaceMailer for http package tests.
 type fakeWSMailer struct {
 	sent []struct{ to, ws, link string }

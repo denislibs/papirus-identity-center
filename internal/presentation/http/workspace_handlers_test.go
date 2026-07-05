@@ -22,6 +22,8 @@ func buildWSAPI(t *testing.T, userID string) (*httptest.Server, *fakeHydra) {
 	ws := newFakeWSHTTP(members)
 	invites := newFakeInvitesHTTP()
 	mailer := &fakeWSMailer{}
+	units := &fakeOrgUnitsHTTP{}
+	positions := &fakePositionsHTTP{}
 	hydra := &fakeHydra{introspectActive: true, introspectSubject: userID}
 	h := apphttp.NewWorkspaceHandlers(
 		appws.NewCreateWorkspace(ws, members),
@@ -29,6 +31,11 @@ func buildWSAPI(t *testing.T, userID string) (*httptest.Server, *fakeHydra) {
 		appws.NewListMembers(members),
 		appws.NewInviteMember(ws, members, invites, mailer, "https://acc.example"),
 		appws.NewAcceptInvite(invites, members),
+		appws.NewCreateOrgUnit(members, units),
+		appws.NewListOrgUnits(members, units),
+		appws.NewCreatePosition(members, positions),
+		appws.NewListPositions(members, positions),
+		appws.NewAssignMember(members, units, positions),
 	)
 	r := chi.NewRouter()
 	r.Group(func(pr chi.Router) { pr.Use(apphttp.RequireAuth(hydra)); h.Register(pr) })
@@ -109,12 +116,19 @@ func TestListMembersForbiddenForNonMember(t *testing.T) {
 
 	// Use a hydra that returns "stranger" as subject
 	hydra := &fakeHydra{introspectActive: true, introspectSubject: "stranger"}
+	units := &fakeOrgUnitsHTTP{}
+	positions := &fakePositionsHTTP{}
 	h := apphttp.NewWorkspaceHandlers(
 		appws.NewCreateWorkspace(ws, members),
 		appws.NewListMyWorkspaces(ws),
 		appws.NewListMembers(members),
 		appws.NewInviteMember(ws, members, invites, mailer, "https://acc.example"),
 		appws.NewAcceptInvite(invites, members),
+		appws.NewCreateOrgUnit(members, units),
+		appws.NewListOrgUnits(members, units),
+		appws.NewCreatePosition(members, positions),
+		appws.NewListPositions(members, positions),
+		appws.NewAssignMember(members, units, positions),
 	)
 	r := chi.NewRouter()
 	r.Group(func(pr chi.Router) { pr.Use(apphttp.RequireAuth(hydra)); h.Register(pr) })
@@ -206,4 +220,137 @@ func TestAcceptInviteBadToken(t *testing.T) {
 	require.NoError(t, err)
 	resp.Body.Close()
 	require.Equal(t, http.StatusNotFound, resp.StatusCode)
+}
+
+// helper: create a workspace via the API and return its ID.
+func createWorkspaceViaAPI(t *testing.T, srvURL, token, name string) string {
+	t.Helper()
+	body, _ := json.Marshal(map[string]string{"name": name})
+	req, _ := http.NewRequest(http.MethodPost, srvURL+"/workspaces", bytes.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+token)
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	var created map[string]any
+	json.NewDecoder(resp.Body).Decode(&created)
+	resp.Body.Close()
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
+	return created["id"].(string)
+}
+
+func TestCreateAndListOrgUnitsEndpoint(t *testing.T) {
+	srv, _ := buildWSAPI(t, "owner-1")
+	defer srv.Close()
+	wsID := createWorkspaceViaAPI(t, srv.URL, "t", "Org Corp")
+
+	// POST /workspaces/{id}/org-units → 201
+	body, _ := json.Marshal(map[string]string{"name": "Sales"})
+	req, _ := http.NewRequest(http.MethodPost, srv.URL+"/workspaces/"+wsID+"/org-units", bytes.NewReader(body))
+	req.Header.Set("Authorization", "Bearer t")
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	var created map[string]any
+	json.NewDecoder(resp.Body).Decode(&created)
+	resp.Body.Close()
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
+	require.NotEmpty(t, created["id"])
+	require.Equal(t, "Sales", created["name"])
+
+	// GET /workspaces/{id}/org-units → 200 with 1 item
+	req2, _ := http.NewRequest(http.MethodGet, srv.URL+"/workspaces/"+wsID+"/org-units", nil)
+	req2.Header.Set("Authorization", "Bearer t")
+	resp2, err := http.DefaultClient.Do(req2)
+	require.NoError(t, err)
+	var list []map[string]any
+	json.NewDecoder(resp2.Body).Decode(&list)
+	resp2.Body.Close()
+	require.Equal(t, http.StatusOK, resp2.StatusCode)
+	require.Len(t, list, 1)
+	require.Equal(t, "Sales", list[0]["name"])
+}
+
+func TestCreateOrgUnitForbiddenForNonManager(t *testing.T) {
+	// Build server as owner-1, then manually add member-2 as a plain member, then
+	// create a new server running as member-2 using the same shared fakes.
+	members := newFakeMembersHTTP()
+	ws := newFakeWSHTTP(members)
+	invites := newFakeInvitesHTTP()
+	mailer := &fakeWSMailer{}
+	units := &fakeOrgUnitsHTTP{}
+	positions := &fakePositionsHTTP{}
+
+	// Seed the workspace as owner-1 directly (bypassing HTTP so we can share fakes).
+	w, err := appws.NewCreateWorkspace(ws, members).Execute(context.Background(), "owner-1", "Corp")
+	require.NoError(t, err)
+
+	// Add member-2 as a plain member.
+	_ = appws.NewListMembers(members) // just to import; member is added directly
+	require.NoError(t, members.Create(context.Background(), &domainws.Member{
+		ID: "m2", WorkspaceID: w.ID, UserID: "member-2",
+		Role: domainws.RoleMember, Status: domainws.StatusActive,
+	}))
+
+	// Build a server whose Hydra returns "member-2".
+	hydra := &fakeHydra{introspectActive: true, introspectSubject: "member-2"}
+	h := apphttp.NewWorkspaceHandlers(
+		appws.NewCreateWorkspace(ws, members),
+		appws.NewListMyWorkspaces(ws),
+		appws.NewListMembers(members),
+		appws.NewInviteMember(ws, members, invites, mailer, "https://acc.example"),
+		appws.NewAcceptInvite(invites, members),
+		appws.NewCreateOrgUnit(members, units),
+		appws.NewListOrgUnits(members, units),
+		appws.NewCreatePosition(members, positions),
+		appws.NewListPositions(members, positions),
+		appws.NewAssignMember(members, units, positions),
+	)
+	r := chi.NewRouter()
+	r.Group(func(pr chi.Router) { pr.Use(apphttp.RequireAuth(hydra)); h.Register(pr) })
+	srv := httptest.NewServer(r)
+	defer srv.Close()
+
+	body, _ := json.Marshal(map[string]string{"name": "Finance"})
+	req, _ := http.NewRequest(http.MethodPost, srv.URL+"/workspaces/"+w.ID+"/org-units", bytes.NewReader(body))
+	req.Header.Set("Authorization", "Bearer t")
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	resp.Body.Close()
+	require.Equal(t, http.StatusForbidden, resp.StatusCode)
+}
+
+func TestAssignMemberEndpoint(t *testing.T) {
+	srv, _ := buildWSAPI(t, "owner-1")
+	defer srv.Close()
+	wsID := createWorkspaceViaAPI(t, srv.URL, "t", "Assign Corp")
+
+	// Create an org unit and a position.
+	ouBody, _ := json.Marshal(map[string]string{"name": "Engineering"})
+	ouReq, _ := http.NewRequest(http.MethodPost, srv.URL+"/workspaces/"+wsID+"/org-units", bytes.NewReader(ouBody))
+	ouReq.Header.Set("Authorization", "Bearer t")
+	ouResp, err := http.DefaultClient.Do(ouReq)
+	require.NoError(t, err)
+	var ou map[string]any
+	json.NewDecoder(ouResp.Body).Decode(&ou)
+	ouResp.Body.Close()
+	require.Equal(t, http.StatusCreated, ouResp.StatusCode)
+	ouID := ou["id"].(string)
+
+	posBody, _ := json.Marshal(map[string]string{"title": "Engineer"})
+	posReq, _ := http.NewRequest(http.MethodPost, srv.URL+"/workspaces/"+wsID+"/positions", bytes.NewReader(posBody))
+	posReq.Header.Set("Authorization", "Bearer t")
+	posResp, err := http.DefaultClient.Do(posReq)
+	require.NoError(t, err)
+	var pos map[string]any
+	json.NewDecoder(posResp.Body).Decode(&pos)
+	posResp.Body.Close()
+	require.Equal(t, http.StatusCreated, posResp.StatusCode)
+	posID := pos["id"].(string)
+
+	// PUT /workspaces/{id}/members/{userId}/assignment → 204
+	assignBody, _ := json.Marshal(map[string]string{"org_unit_id": ouID, "position_id": posID})
+	assignReq, _ := http.NewRequest(http.MethodPut, srv.URL+"/workspaces/"+wsID+"/members/owner-1/assignment", bytes.NewReader(assignBody))
+	assignReq.Header.Set("Authorization", "Bearer t")
+	assignResp, err := http.DefaultClient.Do(assignReq)
+	require.NoError(t, err)
+	assignResp.Body.Close()
+	require.Equal(t, http.StatusNoContent, assignResp.StatusCode)
 }

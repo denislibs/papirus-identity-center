@@ -147,6 +147,14 @@ func provideInviteRepo(pool *pgxpool.Pool) domainws.InviteRepository {
 	return pgc.NewInviteRepository(pool)
 }
 
+func provideOrgUnitRepo(pool *pgxpool.Pool) domainws.OrgUnitRepository {
+	return pgc.NewOrgUnitRepository(pool)
+}
+
+func providePositionRepo(pool *pgxpool.Pool) domainws.PositionRepository {
+	return pgc.NewPositionRepository(pool)
+}
+
 func provideWorkspaceMailer(cfg config.Config) domainws.WorkspaceMailer {
 	if cfg.Mail.Mode == "smtp" {
 		return mail.NewSMTPMailer(cfg.Mail.Host, cfg.Mail.Port, cfg.Mail.User, cfg.Mail.Password, cfg.Mail.From)
@@ -155,13 +163,19 @@ func provideWorkspaceMailer(cfg config.Config) domainws.WorkspaceMailer {
 }
 
 func provideWorkspaceHandlers(cfg config.Config, ws domainws.WorkspaceRepository, mem domainws.MemberRepository,
-	inv domainws.InviteRepository, mailer domainws.WorkspaceMailer) *apphttp.WorkspaceHandlers {
+	inv domainws.InviteRepository, mailer domainws.WorkspaceMailer,
+	orgUnits domainws.OrgUnitRepository, positions domainws.PositionRepository) *apphttp.WorkspaceHandlers {
 	return apphttp.NewWorkspaceHandlers(
 		appws.NewCreateWorkspace(ws, mem),
 		appws.NewListMyWorkspaces(ws),
 		appws.NewListMembers(mem),
 		appws.NewInviteMember(ws, mem, inv, mailer, cfg.BaseURL),
 		appws.NewAcceptInvite(inv, mem),
+		appws.NewCreateOrgUnit(mem, orgUnits),
+		appws.NewListOrgUnits(mem, orgUnits),
+		appws.NewCreatePosition(mem, positions),
+		appws.NewListPositions(mem, positions),
+		appws.NewAssignMember(mem, orgUnits, positions),
 	)
 }
 
@@ -194,6 +208,8 @@ func InitializeApp(ctx context.Context, cfg config.Config) (*App, error) {
 		provideWorkspaceRepo,
 		provideMemberRepo,
 		provideInviteRepo,
+		provideOrgUnitRepo,
+		providePositionRepo,
 		provideWorkspaceMailer,
 		provideWorkspaceHandlers,
 		provideServer,
