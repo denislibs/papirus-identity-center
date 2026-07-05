@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/papyrus/platform/internal/domain/identity"
@@ -26,6 +27,10 @@ func (r *UserRepository) Create(ctx context.Context, u *identity.User) error {
 		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
 		u.ID, u.Email, u.EmailVerified, u.PasswordHash, u.Name, u.AvatarURL, u.Locale, u.Timezone, u.CreatedAt)
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return identity.ErrUserExists
+		}
 		return fmt.Errorf("postgres: create user: %w", err)
 	}
 	return nil

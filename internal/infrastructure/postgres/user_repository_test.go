@@ -70,6 +70,29 @@ func TestUserRepositoryCreateAndFind(t *testing.T) {
 	require.ErrorIs(t, err, identity.ErrUserNotFound)
 }
 
+func TestUserRepositoryCreateDuplicateReturnsErrUserExists(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in -short mode")
+	}
+	ctx, w := newMigratedPool(t)
+	repo := NewUserRepository(w.pool)
+
+	first := &identity.User{
+		ID: "33333333-3333-3333-3333-333333333333", Email: "dup@example.com",
+		PasswordHash: "hash", Name: "First", Locale: "en", Timezone: "UTC",
+		CreatedAt: time.Now().UTC(),
+	}
+	require.NoError(t, repo.Create(ctx, first))
+
+	second := &identity.User{
+		ID: "44444444-4444-4444-4444-444444444444", Email: "dup@example.com",
+		PasswordHash: "hash", Name: "Second", Locale: "en", Timezone: "UTC",
+		CreatedAt: time.Now().UTC(),
+	}
+	err := repo.Create(ctx, second)
+	require.ErrorIs(t, err, identity.ErrUserExists)
+}
+
 func TestUserRepositoryUpdate(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in -short mode")
