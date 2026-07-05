@@ -45,7 +45,8 @@ func InitializeApp(ctx context.Context, cfg config.Config) (*App, error) {
 	hydraClient := provideHydraClient(cfg)
 	sessionRepository := provideSessionRepo(pool)
 	authHandlers := provideAuthHandlers(userRepository, passwordHasher, hydraClient, sessionRepository)
-	server := provideServer(cfg, identityHandlers, authHandlers)
+	sessionHandlers := provideSessionHandlers(sessionRepository, hydraClient)
+	server := provideServer(cfg, identityHandlers, authHandlers, sessionHandlers, hydraClient)
 	app := &App{
 		Config: cfg,
 		DB:     pool,
@@ -111,6 +112,11 @@ func provideAuthHandlers(users identity.UserRepository, hasher identity.Password
 	return http2.NewAuthHandlers(identity2.NewAuthenticate(users, hasher), hydraClient, sessions, http2.MustLoadTemplates())
 }
 
-func provideServer(cfg config.Config, identity3 *http2.IdentityHandlers, auth *http2.AuthHandlers) *http.Server {
-	return httpserver.NewServer(":"+cfg.Port, httpserver.NewRouter(identity3, auth))
+func provideSessionHandlers(sessions identity.SessionRepository, hydraClient identity.HydraClient) *http2.SessionHandlers {
+	return http2.NewSessionHandlers(identity2.NewListSessions(sessions), identity2.NewTerminateSession(sessions, hydraClient), identity2.NewTerminateAllSessions(sessions, hydraClient))
+}
+
+func provideServer(cfg config.Config, identity3 *http2.IdentityHandlers, auth *http2.AuthHandlers,
+	sessions *http2.SessionHandlers, hydraClient identity.HydraClient) *http.Server {
+	return httpserver.NewServer(":"+cfg.Port, httpserver.NewRouter(identity3, auth, sessions, hydraClient))
 }

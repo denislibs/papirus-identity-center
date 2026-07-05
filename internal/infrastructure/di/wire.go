@@ -87,8 +87,17 @@ func provideAuthHandlers(users domainidentity.UserRepository, hasher domainident
 	)
 }
 
-func provideServer(cfg config.Config, identity *apphttp.IdentityHandlers, auth *apphttp.AuthHandlers) *http.Server {
-	return httpserver.NewServer(":"+cfg.Port, httpserver.NewRouter(identity, auth))
+func provideSessionHandlers(sessions domainidentity.SessionRepository, hydraClient domainidentity.HydraClient) *apphttp.SessionHandlers {
+	return apphttp.NewSessionHandlers(
+		appidentity.NewListSessions(sessions),
+		appidentity.NewTerminateSession(sessions, hydraClient),
+		appidentity.NewTerminateAllSessions(sessions, hydraClient),
+	)
+}
+
+func provideServer(cfg config.Config, identity *apphttp.IdentityHandlers, auth *apphttp.AuthHandlers,
+	sessions *apphttp.SessionHandlers, hydraClient domainidentity.HydraClient) *http.Server {
+	return httpserver.NewServer(":"+cfg.Port, httpserver.NewRouter(identity, auth, sessions, hydraClient))
 }
 
 // InitializeApp builds the full application graph.
@@ -104,6 +113,7 @@ func InitializeApp(ctx context.Context, cfg config.Config) (*App, error) {
 		provideSessionRepo,
 		provideHydraClient,
 		provideAuthHandlers,
+		provideSessionHandlers,
 		provideServer,
 		wire.Struct(new(App), "*"),
 	)
