@@ -91,7 +91,44 @@ func TestConsentAutoAcceptsTrustedAndCreatesSession(t *testing.T) {
 	defer resp.Body.Close()
 	require.Equal(t, http.StatusFound, resp.StatusCode)
 	require.Equal(t, []string{"openid", "profile"}, hydra.grantedScopes)
+	require.False(t, hydra.consentRejected)
 	require.Len(t, sessions.created, 1)
 	require.Equal(t, "u1", sessions.created[0].UserID)
 	require.Equal(t, "sid-xyz", sessions.created[0].HydraSessionID)
+}
+
+func TestConsentNonTrustedClientRejectedNoSession(t *testing.T) {
+	srv, hydra, sessions, _ := buildAuthServer(t)
+	defer srv.Close()
+	hydra.consent = &domain.HydraConsentRequest{
+		Subject:         "u1",
+		LoginSessionID:  "sid-abc",
+		RequestedScopes: []string{"openid"},
+		Client:          domain.OAuthClientInfo{ID: "third-party", Trusted: false},
+	}
+
+	resp, err := noRedirectClient().Get(srv.URL + "/consent?consent_challenge=cc-2")
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusFound, resp.StatusCode)
+	require.Equal(t, "https://hydra/redirect", resp.Header.Get("Location"))
+	require.True(t, hydra.consentRejected, "expected consent to be rejected for non-trusted client")
+	require.Len(t, sessions.created, 0, "no session should be created for non-trusted client")
+}
+
+func TestConsentEmptySubjectReturns502(t *testing.T) {
+	srv, hydra, sessions, _ := buildAuthServer(t)
+	defer srv.Close()
+	hydra.consent = &domain.HydraConsentRequest{
+		Subject:         "", // empty — consent flow is broken
+		LoginSessionID:  "sid-bad",
+		RequestedScopes: []string{"openid"},
+		Client:          domain.OAuthClientInfo{ID: "papyrus", Trusted: true},
+	}
+
+	resp, err := noRedirectClient().Get(srv.URL + "/consent?consent_challenge=cc-3")
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusBadGateway, resp.StatusCode)
+	require.Len(t, sessions.created, 0, "no session should be created when Subject is empty")
 }

@@ -34,4 +34,5 @@ type HydraClient interface {
 	RejectLoginRequest(ctx context.Context, challenge, reason string) (redirectTo string, err error)
 	GetConsentRequest(ctx context.Context, challenge string) (*HydraConsentRequest, error)
 	AcceptConsentRequest(ctx context.Context, challenge string, grantScopes []string) (redirectTo string, err error)
+	RejectConsentRequest(ctx context.Context, challenge, reason string) (redirectTo string, err error)
 }

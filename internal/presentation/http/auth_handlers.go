@@ -3,6 +3,7 @@ package http
 import (
 	"errors"
 	"html/template"
+	"log"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -90,21 +91,43 @@ func (h *AuthHandlers) getConsent(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "consent flow error", http.StatusBadGateway)
 		return
 	}
-	// MVP: our clients are trusted → auto-accept all requested scopes.
+
+	// Guard: Subject must be set — if empty the consent flow is broken.
+	if req.Subject == "" {
+		http.Error(w, "consent flow error", http.StatusBadGateway)
+		return
+	}
+
+	if !req.Client.Trusted {
+		// Non-trusted client: reject via Hydra — no session created.
+		redirect, err := h.hydra.RejectConsentRequest(r.Context(), challenge, "consent_required")
+		if err != nil {
+			http.Error(w, "consent flow error", http.StatusBadGateway)
+			return
+		}
+		http.Redirect(w, r, redirect, http.StatusFound)
+		return
+	}
+
+	// Trusted (first-party) client: auto-accept all requested scopes.
 	redirect, err := h.hydra.AcceptConsentRequest(r.Context(), challenge, req.RequestedScopes)
 	if err != nil {
 		http.Error(w, "consent flow error", http.StatusBadGateway)
 		return
 	}
+
 	// Record the session (sid available here as LoginSessionID).
-	_ = h.sessions.Create(r.Context(), &domain.Session{
+	if err := h.sessions.Create(r.Context(), &domain.Session{
 		ID:             uuid.NewString(),
 		UserID:         req.Subject,
 		HydraSessionID: req.LoginSessionID,
 		DeviceName:     deviceFromUA(r.UserAgent()),
 		UserAgent:      r.UserAgent(),
 		IP:             clientIP(r),
-	})
+	}); err != nil {
+		log.Printf("consent: failed to create session for subject %q: %v", req.Subject, err)
+	}
+
 	http.Redirect(w, r, redirect, http.StatusFound)
 }
 

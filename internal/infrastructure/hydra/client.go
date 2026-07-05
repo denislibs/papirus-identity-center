@@ -125,5 +125,17 @@ func (c *Client) AcceptConsentRequest(ctx context.Context, challenge string, gra
 	return res.RedirectTo, nil
 }
 
+// RejectConsentRequest rejects a pending consent request in Hydra and returns the redirect URL.
+func (c *Client) RejectConsentRequest(ctx context.Context, challenge, reason string) (string, error) {
+	body := ory.NewRejectOAuth2Request()
+	body.SetError(reason)
+	res, _, err := c.api.OAuth2API.RejectOAuth2ConsentRequest(ctx).
+		ConsentChallenge(challenge).RejectOAuth2Request(*body).Execute()
+	if err != nil {
+		return "", fmt.Errorf("hydra: reject consent: %w", err)
+	}
+	return res.RedirectTo, nil
+}
+
 // Compile-time assertion: Client must implement identity.HydraClient.
 var _ identity.HydraClient = (*Client)(nil)

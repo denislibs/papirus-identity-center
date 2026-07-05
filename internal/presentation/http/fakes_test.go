@@ -9,11 +9,12 @@ import (
 
 // fakeHydra implements identity.HydraClient.
 type fakeHydra struct {
-	login         *domain.HydraLoginRequest
-	consent       *domain.HydraConsentRequest
-	acceptedSub   string
-	grantedScopes []string
-	redirect      string
+	login            *domain.HydraLoginRequest
+	consent          *domain.HydraConsentRequest
+	acceptedSub      string
+	grantedScopes    []string
+	consentRejected  bool
+	redirect         string
 }
 
 func (f *fakeHydra) GetLoginRequest(_ context.Context, ch string) (*domain.HydraLoginRequest, error) {
@@ -39,6 +40,10 @@ func (f *fakeHydra) GetConsentRequest(_ context.Context, ch string) (*domain.Hyd
 }
 func (f *fakeHydra) AcceptConsentRequest(_ context.Context, ch string, scopes []string) (string, error) {
 	f.grantedScopes = scopes
+	return f.redirect, nil
+}
+func (f *fakeHydra) RejectConsentRequest(_ context.Context, ch, reason string) (string, error) {
+	f.consentRejected = true
 	return f.redirect, nil
 }
 
