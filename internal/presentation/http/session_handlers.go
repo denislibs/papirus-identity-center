@@ -5,7 +5,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	appidentity "github.com/papyrus/platform/internal/application/identity"
+	appidentity "github.com/denislibs/papirus-identity-center/internal/application/identity"
 )
 
 // SessionHandlers exposes the authenticated session-management API.

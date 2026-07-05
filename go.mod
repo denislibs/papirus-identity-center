@@ -1,4 +1,4 @@
-module github.com/papyrus/platform
+module github.com/denislibs/papirus-identity-center
 
 go 1.25.0
 

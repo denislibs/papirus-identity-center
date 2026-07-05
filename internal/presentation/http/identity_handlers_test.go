@@ -11,8 +11,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/require"
 
-	appidentity "github.com/papyrus/platform/internal/application/identity"
-	apphttp "github.com/papyrus/platform/internal/presentation/http"
+	appidentity "github.com/denislibs/papirus-identity-center/internal/application/identity"
+	apphttp "github.com/denislibs/papirus-identity-center/internal/presentation/http"
 )
 
 // buildTestServer wires the identity use-cases with in-memory fakes into a chi router.

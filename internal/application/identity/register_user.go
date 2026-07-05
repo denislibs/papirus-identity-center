@@ -8,7 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
-	domain "github.com/papyrus/platform/internal/domain/identity"
+	domain "github.com/denislibs/papirus-identity-center/internal/domain/identity"
 )
 
 const verifyTokenTTL = 24 * time.Hour

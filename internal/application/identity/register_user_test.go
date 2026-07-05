@@ -7,8 +7,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/papyrus/platform/internal/application/identity"
-	domain "github.com/papyrus/platform/internal/domain/identity"
+	"github.com/denislibs/papirus-identity-center/internal/application/identity"
+	domain "github.com/denislibs/papirus-identity-center/internal/domain/identity"
 )
 
 func TestRegisterUserCreatesUnverifiedAndSendsMail(t *testing.T) {

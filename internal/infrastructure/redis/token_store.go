@@ -10,7 +10,7 @@ import (
 
 	goredis "github.com/redis/go-redis/v9"
 
-	"github.com/papyrus/platform/internal/domain/identity"
+	"github.com/denislibs/papirus-identity-center/internal/domain/identity"
 )
 
 // TokenStore implements identity.VerificationTokens using Redis with TTL.

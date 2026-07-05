@@ -11,7 +11,7 @@ import (
 	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/wait"
 
-	"github.com/papyrus/platform/internal/domain/identity"
+	"github.com/denislibs/papirus-identity-center/internal/domain/identity"
 )
 
 type pgxpoolWrapper struct{ pool *pgxpool.Pool }

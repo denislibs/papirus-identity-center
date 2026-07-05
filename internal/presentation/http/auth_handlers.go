@@ -9,8 +9,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
-	appidentity "github.com/papyrus/platform/internal/application/identity"
-	domain "github.com/papyrus/platform/internal/domain/identity"
+	appidentity "github.com/denislibs/papirus-identity-center/internal/application/identity"
+	domain "github.com/denislibs/papirus-identity-center/internal/domain/identity"
 )
 
 // AuthHandlers implements the Hydra login/consent provider endpoints.

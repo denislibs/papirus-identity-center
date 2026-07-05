@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	domain "github.com/papyrus/platform/internal/domain/identity"
+	domain "github.com/denislibs/papirus-identity-center/internal/domain/identity"
 )
 
 const resetTokenTTL = 1 * time.Hour

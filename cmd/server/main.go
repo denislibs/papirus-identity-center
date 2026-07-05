@@ -4,9 +4,9 @@ import (
 	"context"
 	"log"
 
-	"github.com/papyrus/platform/internal/config"
-	"github.com/papyrus/platform/internal/infrastructure/di"
-	"github.com/papyrus/platform/internal/infrastructure/postgres"
+	"github.com/denislibs/papirus-identity-center/internal/config"
+	"github.com/denislibs/papirus-identity-center/internal/infrastructure/di"
+	"github.com/denislibs/papirus-identity-center/internal/infrastructure/postgres"
 )
 
 func main() {

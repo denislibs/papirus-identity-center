@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	apphttp "github.com/papyrus/platform/internal/presentation/http"
+	apphttp "github.com/denislibs/papirus-identity-center/internal/presentation/http"
 )
 
 func TestRequireAuthRejectsMissingToken(t *testing.T) {

@@ -5,7 +5,7 @@ import (
 	"errors"
 	"strings"
 
-	domain "github.com/papyrus/platform/internal/domain/identity"
+	domain "github.com/denislibs/papirus-identity-center/internal/domain/identity"
 )
 
 // Authenticate verifies an email/password pair and returns the user.

@@ -6,8 +6,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
-	domainidentity "github.com/papyrus/platform/internal/domain/identity"
-	apphttp "github.com/papyrus/platform/internal/presentation/http"
+	domainidentity "github.com/denislibs/papirus-identity-center/internal/domain/identity"
+	apphttp "github.com/denislibs/papirus-identity-center/internal/presentation/http"
 )
 
 // NewRouter wires HTTP routes for the platform.

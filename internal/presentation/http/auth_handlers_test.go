@@ -10,9 +10,9 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/require"
 
-	appidentity "github.com/papyrus/platform/internal/application/identity"
-	domain "github.com/papyrus/platform/internal/domain/identity"
-	apphttp "github.com/papyrus/platform/internal/presentation/http"
+	appidentity "github.com/denislibs/papirus-identity-center/internal/application/identity"
+	domain "github.com/denislibs/papirus-identity-center/internal/domain/identity"
+	apphttp "github.com/denislibs/papirus-identity-center/internal/presentation/http"
 )
 
 func buildAuthServer(t *testing.T) (*httptest.Server, *fakeHydra, *fakeSessions, *fakeUsers) {

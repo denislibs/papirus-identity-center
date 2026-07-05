@@ -13,16 +13,16 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	goredis "github.com/redis/go-redis/v9"
 
-	appidentity "github.com/papyrus/platform/internal/application/identity"
-	"github.com/papyrus/platform/internal/config"
-	domainidentity "github.com/papyrus/platform/internal/domain/identity"
-	"github.com/papyrus/platform/internal/infrastructure/httpserver"
-	"github.com/papyrus/platform/internal/infrastructure/hydra"
-	"github.com/papyrus/platform/internal/infrastructure/mail"
-	pgc "github.com/papyrus/platform/internal/infrastructure/postgres"
-	rdc "github.com/papyrus/platform/internal/infrastructure/redis"
-	"github.com/papyrus/platform/internal/infrastructure/security"
-	apphttp "github.com/papyrus/platform/internal/presentation/http"
+	appidentity "github.com/denislibs/papirus-identity-center/internal/application/identity"
+	"github.com/denislibs/papirus-identity-center/internal/config"
+	domainidentity "github.com/denislibs/papirus-identity-center/internal/domain/identity"
+	"github.com/denislibs/papirus-identity-center/internal/infrastructure/httpserver"
+	"github.com/denislibs/papirus-identity-center/internal/infrastructure/hydra"
+	"github.com/denislibs/papirus-identity-center/internal/infrastructure/mail"
+	pgc "github.com/denislibs/papirus-identity-center/internal/infrastructure/postgres"
+	rdc "github.com/denislibs/papirus-identity-center/internal/infrastructure/redis"
+	"github.com/denislibs/papirus-identity-center/internal/infrastructure/security"
+	apphttp "github.com/denislibs/papirus-identity-center/internal/presentation/http"
 )
 
 // App holds the wired application dependencies.

@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	domain "github.com/papyrus/platform/internal/domain/identity"
+	domain "github.com/denislibs/papirus-identity-center/internal/domain/identity"
 )
 
 type fakeUsers struct{ byID, byEmail map[string]*domain.User }

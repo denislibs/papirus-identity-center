@@ -9,7 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/papyrus/platform/internal/domain/identity"
+	"github.com/denislibs/papirus-identity-center/internal/domain/identity"
 )
 
 // UserRepository is a pgx-backed identity.UserRepository.

@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 	tcredis "github.com/testcontainers/testcontainers-go/modules/redis"
 
-	"github.com/papyrus/platform/internal/domain/identity"
+	"github.com/denislibs/papirus-identity-center/internal/domain/identity"
 )
 
 func TestTokenStoreIssueConsume(t *testing.T) {

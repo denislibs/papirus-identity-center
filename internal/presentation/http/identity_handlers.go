@@ -7,8 +7,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	appidentity "github.com/papyrus/platform/internal/application/identity"
-	domain "github.com/papyrus/platform/internal/domain/identity"
+	appidentity "github.com/denislibs/papirus-identity-center/internal/application/identity"
+	domain "github.com/denislibs/papirus-identity-center/internal/domain/identity"
 )
 
 // IdentityHandlers exposes JSON endpoints for registration and password reset.

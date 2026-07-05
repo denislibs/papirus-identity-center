@@ -3,7 +3,7 @@ package identity_test
 import (
 	"context"
 
-	domain "github.com/papyrus/platform/internal/domain/identity"
+	domain "github.com/denislibs/papirus-identity-center/internal/domain/identity"
 )
 
 // fakeSessionRepo implements domain.SessionRepository for use-case tests.

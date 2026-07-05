@@ -7,8 +7,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/papyrus/platform/internal/infrastructure/hydra"
-	apphttp "github.com/papyrus/platform/internal/presentation/http"
+	"github.com/denislibs/papirus-identity-center/internal/infrastructure/hydra"
+	apphttp "github.com/denislibs/papirus-identity-center/internal/presentation/http"
 )
 
 func TestRouterServesHealthz(t *testing.T) {

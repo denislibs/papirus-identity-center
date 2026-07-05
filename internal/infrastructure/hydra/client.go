@@ -6,7 +6,7 @@ import (
 
 	ory "github.com/ory/hydra-client-go/v2"
 
-	"github.com/papyrus/platform/internal/domain/identity"
+	"github.com/denislibs/papirus-identity-center/internal/domain/identity"
 )
 
 // Client implements identity.HydraClient using the Ory Hydra admin API.
