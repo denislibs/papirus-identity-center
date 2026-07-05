@@ -106,6 +106,45 @@ func TestOrgUnitPositionAndAssign(t *testing.T) {
 	require.Equal(t, pos.ID, *m.PositionID)
 }
 
+func TestProductRepositories(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in -short mode")
+	}
+	ctx, w := newMigratedPool(t)
+	userRepo := NewUserRepository(w.pool)
+	wsRepo := NewWorkspaceRepository(w.pool)
+	prodRepo := NewProductRepository(w.pool)
+	wpRepo := NewWorkspaceProductRepository(w.pool)
+
+	// seeded registry present
+	all, err := prodRepo.ListAll(ctx)
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, len(all), 2)
+	ok, err := prodRepo.Exists(ctx, "papyrus")
+	require.NoError(t, err)
+	require.True(t, ok)
+	ok, err = prodRepo.Exists(ctx, "nope")
+	require.NoError(t, err)
+	require.False(t, ok)
+
+	uid := "ffffffff-0000-0000-0000-000000000001"
+	require.NoError(t, userRepo.Create(ctx, &identity.User{ID: uid, Email: "p@x.com", PasswordHash: "h", Locale: "en", Timezone: "UTC", CreatedAt: time.Now().UTC()}))
+	wsID := "ffffffff-0000-0000-0000-000000000002"
+	require.NoError(t, wsRepo.Create(ctx, &workspace.Workspace{ID: wsID, Name: "P", Slug: "p-1", CreatedBy: uid, CreatedAt: time.Now().UTC()}))
+
+	require.NoError(t, wpRepo.Enable(ctx, wsID, "papyrus"))
+	require.NoError(t, wpRepo.Enable(ctx, wsID, "papyrus")) // idempotent
+	enabled, err := wpRepo.ListEnabled(ctx, wsID)
+	require.NoError(t, err)
+	require.Len(t, enabled, 1)
+	require.Equal(t, "papyrus", enabled[0].Key)
+
+	require.NoError(t, wpRepo.Disable(ctx, wsID, "papyrus"))
+	enabled, err = wpRepo.ListEnabled(ctx, wsID)
+	require.NoError(t, err)
+	require.Len(t, enabled, 0)
+}
+
 func TestMemberRepositoryCreateDuplicateReturnsErrAlreadyMember(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in -short mode")

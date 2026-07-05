@@ -157,6 +157,77 @@ func (r *InviteRepository) MarkAccepted(ctx context.Context, id string) error {
 	return nil
 }
 
+type ProductRepository struct{ pool *pgxpool.Pool }
+
+func NewProductRepository(pool *pgxpool.Pool) *ProductRepository { return &ProductRepository{pool} }
+
+func (r *ProductRepository) ListAll(ctx context.Context) ([]*workspace.Product, error) {
+	rows, err := r.pool.Query(ctx, `SELECT key, name FROM products ORDER BY name`)
+	if err != nil {
+		return nil, fmt.Errorf("postgres: list products: %w", err)
+	}
+	defer rows.Close()
+	var out []*workspace.Product
+	for rows.Next() {
+		var p workspace.Product
+		if err := rows.Scan(&p.Key, &p.Name); err != nil {
+			return nil, fmt.Errorf("postgres: scan product: %w", err)
+		}
+		out = append(out, &p)
+	}
+	return out, rows.Err()
+}
+
+func (r *ProductRepository) Exists(ctx context.Context, key string) (bool, error) {
+	var ok bool
+	err := r.pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM products WHERE key=$1)`, key).Scan(&ok)
+	if err != nil {
+		return false, fmt.Errorf("postgres: product exists: %w", err)
+	}
+	return ok, nil
+}
+
+type WorkspaceProductRepository struct{ pool *pgxpool.Pool }
+
+func NewWorkspaceProductRepository(pool *pgxpool.Pool) *WorkspaceProductRepository {
+	return &WorkspaceProductRepository{pool}
+}
+
+func (r *WorkspaceProductRepository) Enable(ctx context.Context, workspaceID, productKey string) error {
+	_, err := r.pool.Exec(ctx, `INSERT INTO workspace_products (workspace_id, product_key) VALUES ($1,$2) ON CONFLICT DO NOTHING`, workspaceID, productKey)
+	if err != nil {
+		return fmt.Errorf("postgres: enable product: %w", err)
+	}
+	return nil
+}
+
+func (r *WorkspaceProductRepository) Disable(ctx context.Context, workspaceID, productKey string) error {
+	_, err := r.pool.Exec(ctx, `DELETE FROM workspace_products WHERE workspace_id=$1 AND product_key=$2`, workspaceID, productKey)
+	if err != nil {
+		return fmt.Errorf("postgres: disable product: %w", err)
+	}
+	return nil
+}
+
+func (r *WorkspaceProductRepository) ListEnabled(ctx context.Context, workspaceID string) ([]*workspace.Product, error) {
+	rows, err := r.pool.Query(ctx,
+		`SELECT p.key, p.name FROM products p JOIN workspace_products wp ON wp.product_key = p.key
+		 WHERE wp.workspace_id=$1 ORDER BY p.name`, workspaceID)
+	if err != nil {
+		return nil, fmt.Errorf("postgres: list enabled products: %w", err)
+	}
+	defer rows.Close()
+	var out []*workspace.Product
+	for rows.Next() {
+		var p workspace.Product
+		if err := rows.Scan(&p.Key, &p.Name); err != nil {
+			return nil, fmt.Errorf("postgres: scan enabled product: %w", err)
+		}
+		out = append(out, &p)
+	}
+	return out, rows.Err()
+}
+
 type OrgUnitRepository struct{ pool *pgxpool.Pool }
 
 func NewOrgUnitRepository(pool *pgxpool.Pool) *OrgUnitRepository { return &OrgUnitRepository{pool} }
