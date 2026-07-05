@@ -53,6 +53,11 @@ type Position struct {
 	CreatedAt   time.Time
 }
 
+type Product struct {
+	Key  string
+	Name string
+}
+
 type Invite struct {
 	ID          string
 	WorkspaceID string
@@ -71,9 +76,10 @@ var (
 	ErrForbidden         = errors.New("workspace: insufficient role")
 	ErrInvalidName       = errors.New("workspace: invalid name")
 	ErrInvalidRole       = errors.New("workspace: invalid role")
-	ErrOrgUnitNotFound  = errors.New("workspace: org unit not found")
-	ErrPositionNotFound = errors.New("workspace: position not found")
-	ErrInvalidTitle     = errors.New("workspace: invalid title")
+	ErrOrgUnitNotFound   = errors.New("workspace: org unit not found")
+	ErrPositionNotFound  = errors.New("workspace: position not found")
+	ErrInvalidTitle      = errors.New("workspace: invalid title")
+	ErrProductNotFound   = errors.New("workspace: product not found")
 )
 
 // CanManageMembers reports whether a role may invite/manage members.

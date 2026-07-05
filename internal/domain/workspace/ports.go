@@ -39,3 +39,14 @@ type InviteRepository interface {
 type WorkspaceMailer interface {
 	SendWorkspaceInvite(ctx context.Context, to, workspaceName, link string) error
 }
+
+type ProductRepository interface {
+	ListAll(ctx context.Context) ([]*Product, error)
+	Exists(ctx context.Context, key string) (bool, error)
+}
+
+type WorkspaceProductRepository interface {
+	Enable(ctx context.Context, workspaceID, productKey string) error
+	Disable(ctx context.Context, workspaceID, productKey string) error
+	ListEnabled(ctx context.Context, workspaceID string) ([]*Product, error)
+}
