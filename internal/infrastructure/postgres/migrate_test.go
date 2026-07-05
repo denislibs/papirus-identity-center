@@ -94,6 +94,30 @@ func TestRunMigrationsCreatesOrgStructure(t *testing.T) {
 	}
 }
 
+func TestRunMigrationsCreatesProducts(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in -short mode")
+	}
+	ctx := context.Background()
+	container, err := tcpostgres.Run(ctx, "postgres:16-alpine",
+		tcpostgres.WithDatabase("platform"), tcpostgres.WithUsername("platform"), tcpostgres.WithPassword("platform"),
+		testcontainers.WithWaitStrategy(wait.ForLog("database system is ready to accept connections").WithOccurrence(2).WithStartupTimeout(60*time.Second)))
+	require.NoError(t, err)
+	defer func() { _ = container.Terminate(ctx) }()
+	dsn, err := container.ConnectionString(ctx, "sslmode=disable")
+	require.NoError(t, err)
+	require.NoError(t, RunMigrations(dsn))
+	pool, err := Connect(ctx, dsn)
+	require.NoError(t, err)
+	defer pool.Close()
+	var n int
+	require.NoError(t, pool.QueryRow(ctx, `SELECT count(*) FROM products`).Scan(&n))
+	require.GreaterOrEqual(t, n, 2)
+	var ok bool
+	require.NoError(t, pool.QueryRow(ctx, `SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name='workspace_products')`).Scan(&ok))
+	require.True(t, ok)
+}
+
 func TestRunMigrationsCreatesUsers(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in -short mode")
