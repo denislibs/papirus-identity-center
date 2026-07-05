@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"strings"
 )
 
 type DBConfig struct {
@@ -42,12 +43,13 @@ type MailConfig struct {
 }
 
 type Config struct {
-	Port    string
-	DB      DBConfig
-	Redis   RedisConfig
-	Hydra   HydraConfig
-	BaseURL string
-	Mail    MailConfig
+	Port             string
+	DB               DBConfig
+	Redis            RedisConfig
+	Hydra            HydraConfig
+	BaseURL          string
+	Mail             MailConfig
+	TrustedClientIDs []string
 }
 
 func Load() (Config, error) {
@@ -90,6 +92,14 @@ func Load() (Config, error) {
 	}
 	if cfg.Mail.Mode == "" {
 		cfg.Mail.Mode = "log"
+	}
+
+	if raw := os.Getenv("TRUSTED_CLIENT_IDS"); raw != "" {
+		for _, id := range strings.Split(raw, ",") {
+			if s := strings.TrimSpace(id); s != "" {
+				cfg.TrustedClientIDs = append(cfg.TrustedClientIDs, s)
+			}
+		}
 	}
 
 	return cfg, nil

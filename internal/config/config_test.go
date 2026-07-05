@@ -49,3 +49,19 @@ func TestLoadReadsBaseURLAndMail(t *testing.T) {
 	require.Equal(t, "https://acc.example", cfg.BaseURL)
 	require.Equal(t, "log", cfg.Mail.Mode)
 }
+
+func TestLoadReadsTrustedClients(t *testing.T) {
+	t.Setenv("PORT", "9999")
+	t.Setenv("DB_HOST", "db")
+	t.Setenv("DB_PORT", "5432")
+	t.Setenv("DB_USER", "u")
+	t.Setenv("DB_PASSWORD", "p")
+	t.Setenv("DB_NAME", "n")
+	t.Setenv("REDIS_HOST", "r")
+	t.Setenv("REDIS_PORT", "6379")
+	t.Setenv("TRUSTED_CLIENT_IDS", "papyrus,lite")
+
+	cfg, err := Load()
+	require.NoError(t, err)
+	require.Equal(t, []string{"papyrus", "lite"}, cfg.TrustedClientIDs)
+}

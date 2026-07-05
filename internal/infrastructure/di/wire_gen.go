@@ -13,6 +13,7 @@ import (
 	"github.com/papyrus/platform/internal/config"
 	"github.com/papyrus/platform/internal/domain/identity"
 	"github.com/papyrus/platform/internal/infrastructure/httpserver"
+	"github.com/papyrus/platform/internal/infrastructure/hydra"
 	"github.com/papyrus/platform/internal/infrastructure/mail"
 	"github.com/papyrus/platform/internal/infrastructure/postgres"
 	redis2 "github.com/papyrus/platform/internal/infrastructure/redis"
@@ -41,7 +42,10 @@ func InitializeApp(ctx context.Context, cfg config.Config) (*App, error) {
 	verificationTokens := provideTokens(client)
 	mailer := provideMailer(cfg)
 	identityHandlers := provideIdentityHandlers(cfg, userRepository, passwordHasher, verificationTokens, mailer)
-	server := provideServer(cfg, identityHandlers)
+	hydraClient := provideHydraClient(cfg)
+	sessionRepository := provideSessionRepo(pool)
+	authHandlers := provideAuthHandlers(userRepository, passwordHasher, hydraClient, sessionRepository)
+	server := provideServer(cfg, identityHandlers, authHandlers)
 	app := &App{
 		Config: cfg,
 		DB:     pool,
@@ -94,6 +98,19 @@ func provideIdentityHandlers(cfg config.Config, users identity.UserRepository,
 	return http2.NewIdentityHandlers(identity2.NewRegisterUser(users, hasher, tokens, mailer, cfg.BaseURL), identity2.NewVerifyEmail(users, tokens), identity2.NewRequestPasswordReset(users, tokens, mailer, cfg.BaseURL), identity2.NewResetPassword(users, hasher, tokens))
 }
 
-func provideServer(cfg config.Config, identity3 *http2.IdentityHandlers) *http.Server {
-	return httpserver.NewServer(":"+cfg.Port, httpserver.NewRouter(identity3))
+func provideSessionRepo(pool *pgxpool.Pool) identity.SessionRepository {
+	return postgres.NewSessionRepository(pool)
+}
+
+func provideHydraClient(cfg config.Config) identity.HydraClient {
+	return hydra.New(cfg.Hydra.AdminURL, cfg.TrustedClientIDs)
+}
+
+func provideAuthHandlers(users identity.UserRepository, hasher identity.PasswordHasher,
+	hydraClient identity.HydraClient, sessions identity.SessionRepository) *http2.AuthHandlers {
+	return http2.NewAuthHandlers(identity2.NewAuthenticate(users, hasher), hydraClient, sessions, http2.MustLoadTemplates())
+}
+
+func provideServer(cfg config.Config, identity3 *http2.IdentityHandlers, auth *http2.AuthHandlers) *http.Server {
+	return httpserver.NewServer(":"+cfg.Port, httpserver.NewRouter(identity3, auth))
 }

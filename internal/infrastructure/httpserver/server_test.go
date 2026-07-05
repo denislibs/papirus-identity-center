@@ -11,8 +11,9 @@ import (
 )
 
 func TestRouterServesHealthz(t *testing.T) {
-	h := apphttp.NewIdentityHandlers(nil, nil, nil, nil)
-	srv := httptest.NewServer(NewRouter(h))
+	identity := apphttp.NewIdentityHandlers(nil, nil, nil, nil)
+	auth := apphttp.NewAuthHandlers(nil, nil, nil, apphttp.MustLoadTemplates())
+	srv := httptest.NewServer(NewRouter(identity, auth))
 	defer srv.Close()
 
 	resp, err := http.Get(srv.URL + "/healthz")

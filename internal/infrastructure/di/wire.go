@@ -17,6 +17,7 @@ import (
 	"github.com/papyrus/platform/internal/config"
 	domainidentity "github.com/papyrus/platform/internal/domain/identity"
 	"github.com/papyrus/platform/internal/infrastructure/httpserver"
+	"github.com/papyrus/platform/internal/infrastructure/hydra"
 	"github.com/papyrus/platform/internal/infrastructure/mail"
 	pgc "github.com/papyrus/platform/internal/infrastructure/postgres"
 	rdc "github.com/papyrus/platform/internal/infrastructure/redis"
@@ -70,8 +71,24 @@ func provideIdentityHandlers(cfg config.Config, users domainidentity.UserReposit
 	)
 }
 
-func provideServer(cfg config.Config, identity *apphttp.IdentityHandlers) *http.Server {
-	return httpserver.NewServer(":"+cfg.Port, httpserver.NewRouter(identity))
+func provideSessionRepo(pool *pgxpool.Pool) domainidentity.SessionRepository {
+	return pgc.NewSessionRepository(pool)
+}
+
+func provideHydraClient(cfg config.Config) domainidentity.HydraClient {
+	return hydra.New(cfg.Hydra.AdminURL, cfg.TrustedClientIDs)
+}
+
+func provideAuthHandlers(users domainidentity.UserRepository, hasher domainidentity.PasswordHasher,
+	hydraClient domainidentity.HydraClient, sessions domainidentity.SessionRepository) *apphttp.AuthHandlers {
+	return apphttp.NewAuthHandlers(
+		appidentity.NewAuthenticate(users, hasher),
+		hydraClient, sessions, apphttp.MustLoadTemplates(),
+	)
+}
+
+func provideServer(cfg config.Config, identity *apphttp.IdentityHandlers, auth *apphttp.AuthHandlers) *http.Server {
+	return httpserver.NewServer(":"+cfg.Port, httpserver.NewRouter(identity, auth))
 }
 
 // InitializeApp builds the full application graph.
@@ -84,6 +101,9 @@ func InitializeApp(ctx context.Context, cfg config.Config) (*App, error) {
 		provideHasher,
 		provideMailer,
 		provideIdentityHandlers,
+		provideSessionRepo,
+		provideHydraClient,
+		provideAuthHandlers,
 		provideServer,
 		wire.Struct(new(App), "*"),
 	)

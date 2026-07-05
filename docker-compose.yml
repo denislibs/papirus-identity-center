@@ -17,6 +17,7 @@ services:
       - HYDRA_PUBLIC_URL=http://hydra:4444
       - BASE_URL=http://localhost:8090
       - MAIL_MODE=log
+      - TRUSTED_CLIENT_IDS=papyrus
     depends_on:
       platform-postgres:
         condition: service_healthy

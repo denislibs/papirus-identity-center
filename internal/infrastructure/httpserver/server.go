@@ -10,13 +10,14 @@ import (
 )
 
 // NewRouter wires HTTP routes for the platform.
-func NewRouter(identity *apphttp.IdentityHandlers) http.Handler {
+func NewRouter(identity *apphttp.IdentityHandlers, auth *apphttp.AuthHandlers) http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Recoverer)
 
 	r.Get("/healthz", apphttp.Healthz())
 	identity.Register(r)
+	auth.Register(r)
 
 	return r
 }
