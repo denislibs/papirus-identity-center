@@ -65,3 +65,18 @@ func TestLoadReadsTrustedClients(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []string{"papyrus", "lite"}, cfg.TrustedClientIDs)
 }
+
+func TestLoadReadsHubConfig(t *testing.T) {
+	t.Setenv("PORT", "9999")
+	t.Setenv("DB_HOST", "db"); t.Setenv("DB_PORT", "5432")
+	t.Setenv("DB_USER", "u"); t.Setenv("DB_PASSWORD", "p"); t.Setenv("DB_NAME", "n")
+	t.Setenv("REDIS_HOST", "r"); t.Setenv("REDIS_PORT", "6379")
+	t.Setenv("HUB_CLIENT_ID", "hub"); t.Setenv("HUB_CLIENT_SECRET", "secret")
+	t.Setenv("SELF_URL", "http://localhost:8090")
+
+	cfg, err := Load()
+	require.NoError(t, err)
+	require.Equal(t, "hub", cfg.HubClientID)
+	require.Equal(t, "secret", cfg.HubClientSecret)
+	require.Equal(t, "http://localhost:8090", cfg.SelfURL)
+}

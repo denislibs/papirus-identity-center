@@ -31,6 +31,7 @@ func (c RedisConfig) Addr() string {
 type HydraConfig struct {
 	AdminURL  string
 	PublicURL string
+	TokenURL  string
 }
 
 type MailConfig struct {
@@ -50,6 +51,9 @@ type Config struct {
 	BaseURL          string
 	Mail             MailConfig
 	TrustedClientIDs []string
+	HubClientID      string
+	HubClientSecret  string
+	SelfURL          string
 }
 
 func Load() (Config, error) {
@@ -100,6 +104,17 @@ func Load() (Config, error) {
 				cfg.TrustedClientIDs = append(cfg.TrustedClientIDs, s)
 			}
 		}
+	}
+
+	cfg.HubClientID = os.Getenv("HUB_CLIENT_ID")
+	cfg.HubClientSecret = os.Getenv("HUB_CLIENT_SECRET")
+	cfg.SelfURL = os.Getenv("SELF_URL")
+	if cfg.SelfURL == "" {
+		cfg.SelfURL = "http://localhost:" + cfg.Port
+	}
+	cfg.Hydra.TokenURL = os.Getenv("HYDRA_TOKEN_URL")
+	if cfg.Hydra.TokenURL == "" {
+		cfg.Hydra.TokenURL = cfg.Hydra.PublicURL // non-docker local: same host
 	}
 
 	return cfg, nil
