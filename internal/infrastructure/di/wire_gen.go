@@ -12,6 +12,7 @@ import (
 	"github.com/denislibs/papirus-identity-center/internal/config"
 	"github.com/denislibs/papirus-identity-center/internal/domain/identity"
 	"github.com/denislibs/papirus-identity-center/internal/infrastructure/httpserver"
+	"github.com/denislibs/papirus-identity-center/internal/infrastructure/hubauth"
 	"github.com/denislibs/papirus-identity-center/internal/infrastructure/hydra"
 	"github.com/denislibs/papirus-identity-center/internal/infrastructure/mail"
 	"github.com/denislibs/papirus-identity-center/internal/infrastructure/postgres"
@@ -23,6 +24,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 )
 
 // Injectors from wire.go:
@@ -46,7 +48,11 @@ func InitializeApp(ctx context.Context, cfg config.Config) (*App, error) {
 	sessionRepository := provideSessionRepo(pool)
 	authHandlers := provideAuthHandlers(userRepository, passwordHasher, hydraClient, sessionRepository)
 	sessionHandlers := provideSessionHandlers(sessionRepository, hydraClient)
-	server := provideServer(cfg, identityHandlers, authHandlers, sessionHandlers, hydraClient)
+	hubOAuth := provideHubOAuth(cfg, hydraClient)
+	hubSessionStore := provideHubStore(client)
+	hubAuthHandlers := provideHubAuthHandlers(hubOAuth, hubSessionStore)
+	hubHandlers := provideHubHandlers(userRepository)
+	server := provideServer(cfg, identityHandlers, authHandlers, sessionHandlers, hydraClient, hubAuthHandlers, hubHandlers, hubSessionStore)
 	app := &App{
 		Config: cfg,
 		DB:     pool,
@@ -116,7 +122,25 @@ func provideSessionHandlers(sessions identity.SessionRepository, hydraClient ide
 	return http2.NewSessionHandlers(identity2.NewListSessions(sessions), identity2.NewTerminateSession(sessions, hydraClient), identity2.NewTerminateAllSessions(sessions, hydraClient))
 }
 
+func provideHubStore(client *redis.Client) identity.HubSessionStore {
+	return redis2.NewHubSessionStore(client, 24*time.Hour)
+}
+
+func provideHubOAuth(cfg config.Config, hydraClient identity.HydraClient) http2.HubOAuth {
+	return hubauth.New(cfg.HubClientID, cfg.HubClientSecret, cfg.SelfURL+"/auth/callback",
+		cfg.Hydra.PublicURL, cfg.Hydra.TokenURL, hydraClient)
+}
+
+func provideHubAuthHandlers(oauth http2.HubOAuth, store identity.HubSessionStore) *http2.HubAuthHandlers {
+	return http2.NewHubAuthHandlers(oauth, store)
+}
+
+func provideHubHandlers(users identity.UserRepository) *http2.HubHandlers {
+	return http2.NewHubHandlers(identity2.NewGetProfile(users), http2.MustLoadTemplates())
+}
+
 func provideServer(cfg config.Config, identity3 *http2.IdentityHandlers, auth *http2.AuthHandlers,
-	sessions *http2.SessionHandlers, hydraClient identity.HydraClient) *http.Server {
-	return httpserver.NewServer(":"+cfg.Port, httpserver.NewRouter(identity3, auth, sessions, hydraClient))
+	sessions *http2.SessionHandlers, hydraClient identity.HydraClient,
+	hubAuth *http2.HubAuthHandlers, hub *http2.HubHandlers, hubStore identity.HubSessionStore) *http.Server {
+	return httpserver.NewServer(":"+cfg.Port, httpserver.NewRouter(identity3, auth, sessions, hydraClient, hubAuth, hub, hubStore))
 }

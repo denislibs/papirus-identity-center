@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/google/wire"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -17,6 +18,7 @@ import (
 	"github.com/denislibs/papirus-identity-center/internal/config"
 	domainidentity "github.com/denislibs/papirus-identity-center/internal/domain/identity"
 	"github.com/denislibs/papirus-identity-center/internal/infrastructure/httpserver"
+	"github.com/denislibs/papirus-identity-center/internal/infrastructure/hubauth"
 	"github.com/denislibs/papirus-identity-center/internal/infrastructure/hydra"
 	"github.com/denislibs/papirus-identity-center/internal/infrastructure/mail"
 	pgc "github.com/denislibs/papirus-identity-center/internal/infrastructure/postgres"
@@ -95,9 +97,27 @@ func provideSessionHandlers(sessions domainidentity.SessionRepository, hydraClie
 	)
 }
 
+func provideHubStore(client *goredis.Client) domainidentity.HubSessionStore {
+	return rdc.NewHubSessionStore(client, 24*time.Hour)
+}
+
+func provideHubOAuth(cfg config.Config, hydraClient domainidentity.HydraClient) apphttp.HubOAuth {
+	return hubauth.New(cfg.HubClientID, cfg.HubClientSecret, cfg.SelfURL+"/auth/callback",
+		cfg.Hydra.PublicURL, cfg.Hydra.TokenURL, hydraClient)
+}
+
+func provideHubAuthHandlers(oauth apphttp.HubOAuth, store domainidentity.HubSessionStore) *apphttp.HubAuthHandlers {
+	return apphttp.NewHubAuthHandlers(oauth, store)
+}
+
+func provideHubHandlers(users domainidentity.UserRepository) *apphttp.HubHandlers {
+	return apphttp.NewHubHandlers(appidentity.NewGetProfile(users), apphttp.MustLoadTemplates())
+}
+
 func provideServer(cfg config.Config, identity *apphttp.IdentityHandlers, auth *apphttp.AuthHandlers,
-	sessions *apphttp.SessionHandlers, hydraClient domainidentity.HydraClient) *http.Server {
-	return httpserver.NewServer(":"+cfg.Port, httpserver.NewRouter(identity, auth, sessions, hydraClient))
+	sessions *apphttp.SessionHandlers, hydraClient domainidentity.HydraClient,
+	hubAuth *apphttp.HubAuthHandlers, hub *apphttp.HubHandlers, hubStore domainidentity.HubSessionStore) *http.Server {
+	return httpserver.NewServer(":"+cfg.Port, httpserver.NewRouter(identity, auth, sessions, hydraClient, hubAuth, hub, hubStore))
 }
 
 // InitializeApp builds the full application graph.
@@ -114,6 +134,10 @@ func InitializeApp(ctx context.Context, cfg config.Config) (*App, error) {
 		provideHydraClient,
 		provideAuthHandlers,
 		provideSessionHandlers,
+		provideHubStore,
+		provideHubOAuth,
+		provideHubAuthHandlers,
+		provideHubHandlers,
 		provideServer,
 		wire.Struct(new(App), "*"),
 	)

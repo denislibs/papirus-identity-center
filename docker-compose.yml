@@ -14,10 +14,14 @@ services:
       - REDIS_HOST=platform-redis
       - REDIS_PORT=6379
       - HYDRA_ADMIN_URL=http://hydra:4445
-      - HYDRA_PUBLIC_URL=http://hydra:4444
+      - HYDRA_PUBLIC_URL=http://localhost:4444
+      - HYDRA_TOKEN_URL=http://hydra:4444
       - BASE_URL=http://localhost:8090
       - MAIL_MODE=log
       - TRUSTED_CLIENT_IDS=papyrus
+      - HUB_CLIENT_ID=hub
+      - HUB_CLIENT_SECRET=hub-secret
+      - SELF_URL=http://localhost:8090
     depends_on:
       platform-postgres:
         condition: service_healthy

@@ -12,7 +12,8 @@ import (
 
 // NewRouter wires HTTP routes for the platform.
 func NewRouter(identity *apphttp.IdentityHandlers, auth *apphttp.AuthHandlers,
-	sessions *apphttp.SessionHandlers, hydra domainidentity.HydraClient) http.Handler {
+	sessions *apphttp.SessionHandlers, hydra domainidentity.HydraClient,
+	hubAuth *apphttp.HubAuthHandlers, hub *apphttp.HubHandlers, hubStore domainidentity.HubSessionStore) http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Recoverer)
@@ -20,11 +21,18 @@ func NewRouter(identity *apphttp.IdentityHandlers, auth *apphttp.AuthHandlers,
 	r.Get("/healthz", apphttp.Healthz())
 	identity.Register(r)
 	auth.Register(r)
+	hubAuth.Register(r) // /auth/login, /auth/callback, /auth/logout (public)
 
 	// Authenticated platform API.
 	r.Group(func(pr chi.Router) {
 		pr.Use(apphttp.RequireAuth(hydra))
 		sessions.Register(pr)
+	})
+
+	// Hub pages (cookie session).
+	r.Group(func(pr chi.Router) {
+		pr.Use(apphttp.RequireHubSession(hubStore))
+		hub.Register(pr)
 	})
 
 	return r
