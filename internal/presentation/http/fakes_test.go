@@ -62,22 +62,56 @@ func (f *fakeHydra) IntrospectToken(_ context.Context, _ string) (bool, string, 
 	return f.introspectActive, f.introspectSubject, nil
 }
 
-// fakeSessions implements identity.SessionRepository (create-capturing only for these tests).
-type fakeSessions struct{ created []*domain.Session }
+// fakeSessions implements identity.SessionRepository as a real in-memory store.
+// The `created` slice is kept so existing consent-handler tests that assert
+// sessions.created still compile and pass.  Create lazily inits maps so that
+// &fakeSessions{} call sites continue to compile.
+type fakeSessions struct {
+	created []*domain.Session
+	byID    map[string]*domain.Session
+	ended   map[string]bool
+}
 
+func newFakeSessions() *fakeSessions {
+	return &fakeSessions{byID: map[string]*domain.Session{}, ended: map[string]bool{}}
+}
 func (f *fakeSessions) Create(_ context.Context, s *domain.Session) error {
-	f.created = append(f.created, s)
+	if f.byID == nil {
+		f.byID = map[string]*domain.Session{}
+		f.ended = map[string]bool{}
+	}
+	cp := *s
+	f.created = append(f.created, &cp)
+	f.byID[s.ID] = &cp
 	return nil
 }
 func (f *fakeSessions) FindByID(_ context.Context, id string) (*domain.Session, error) {
+	if s, ok := f.byID[id]; ok {
+		cp := *s
+		return &cp, nil
+	}
 	return nil, domain.ErrSessionNotFound
 }
-func (f *fakeSessions) ListActiveByUser(_ context.Context, _ string) ([]*domain.Session, error) {
-	return f.created, nil
+func (f *fakeSessions) ListActiveByUser(_ context.Context, userID string) ([]*domain.Session, error) {
+	var out []*domain.Session
+	for _, s := range f.created {
+		if s.UserID == userID && !f.ended[s.ID] {
+			cp := *s
+			out = append(out, &cp)
+		}
+	}
+	return out, nil
 }
-func (f *fakeSessions) MarkEnded(_ context.Context, _ string) error           { return nil }
+func (f *fakeSessions) MarkEnded(_ context.Context, id string) error { f.ended[id] = true; return nil }
 func (f *fakeSessions) MarkEndedByHydraSID(_ context.Context, _ string) error { return nil }
-func (f *fakeSessions) MarkAllEndedByUser(_ context.Context, _ string) error  { return nil }
+func (f *fakeSessions) MarkAllEndedByUser(_ context.Context, userID string) error {
+	for _, s := range f.created {
+		if s.UserID == userID {
+			f.ended[s.ID] = true
+		}
+	}
+	return nil
+}
 
 type fakeUsers struct{ byID, byEmail map[string]*domain.User }
 
