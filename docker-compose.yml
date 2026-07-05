@@ -18,7 +18,7 @@ services:
       - HYDRA_TOKEN_URL=http://hydra:4444
       - BASE_URL=http://localhost:8090
       - MAIL_MODE=log
-      - TRUSTED_CLIENT_IDS=papyrus
+      - TRUSTED_CLIENT_IDS=papyrus,hub
       - HUB_CLIENT_ID=hub
       - HUB_CLIENT_SECRET=hub-secret
       - SELF_URL=http://localhost:8090
