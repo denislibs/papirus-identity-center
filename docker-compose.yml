@@ -1,0 +1,109 @@
+services:
+  platform-core:
+    build: .
+    container_name: platform-core
+    ports:
+      - "8090:8090"
+    environment:
+      - PORT=8090
+      - DB_HOST=platform-postgres
+      - DB_PORT=5432
+      - DB_USER=platform
+      - DB_PASSWORD=platform
+      - DB_NAME=platform
+      - REDIS_HOST=platform-redis
+      - REDIS_PORT=6379
+      - HYDRA_ADMIN_URL=http://hydra:4445
+      - HYDRA_PUBLIC_URL=http://hydra:4444
+    depends_on:
+      platform-postgres:
+        condition: service_healthy
+      platform-redis:
+        condition: service_healthy
+      hydra:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8090/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    networks:
+      - platform-net
+
+  platform-postgres:
+    image: postgres:16-alpine
+    container_name: platform-postgres
+    environment:
+      - POSTGRES_USER=platform
+      - POSTGRES_PASSWORD=platform
+      - POSTGRES_DB=platform
+    ports:
+      - "5440:5432"
+    volumes:
+      - platform_pg:/var/lib/postgresql/data
+      - ./scripts/init-hydra-db.sh:/docker-entrypoint-initdb.d/init-hydra-db.sh
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U platform"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - platform-net
+
+  platform-redis:
+    image: redis:7-alpine
+    container_name: platform-redis
+    ports:
+      - "6390:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - platform-net
+
+  hydra-migrate:
+    image: oryd/hydra:v2.2.0
+    container_name: platform-hydra-migrate
+    command: migrate sql -e --yes
+    environment:
+      - DSN=postgres://platform:platform@platform-postgres:5432/hydra?sslmode=disable
+    depends_on:
+      platform-postgres:
+        condition: service_healthy
+    restart: on-failure
+    networks:
+      - platform-net
+
+  hydra:
+    image: oryd/hydra:v2.2.0
+    container_name: platform-hydra
+    command: serve all --dev
+    ports:
+      - "4444:4444"
+      - "4445:4445"
+    environment:
+      - DSN=postgres://platform:platform@platform-postgres:5432/hydra?sslmode=disable
+      - URLS_SELF_ISSUER=http://localhost:4444
+      - URLS_LOGIN=http://localhost:8090/login
+      - URLS_CONSENT=http://localhost:8090/consent
+      - SECRETS_SYSTEM=youReallyNeedToChangeThis
+    depends_on:
+      hydra-migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:4444/health/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - platform-net
+
+volumes:
+  platform_pg:
+
+networks:
+  platform-net:
