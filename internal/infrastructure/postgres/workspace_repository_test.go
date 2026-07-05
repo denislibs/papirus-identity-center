@@ -63,6 +63,49 @@ func TestWorkspaceRepositories(t *testing.T) {
 	require.ErrorIs(t, err, workspace.ErrInviteNotFound)
 }
 
+func TestOrgUnitPositionAndAssign(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in -short mode")
+	}
+	ctx, w := newMigratedPool(t)
+	userRepo := NewUserRepository(w.pool)
+	wsRepo := NewWorkspaceRepository(w.pool)
+	memRepo := NewMemberRepository(w.pool)
+	unitRepo := NewOrgUnitRepository(w.pool)
+	posRepo := NewPositionRepository(w.pool)
+
+	uid := "99999999-9999-9999-9999-999999999999"
+	require.NoError(t, userRepo.Create(ctx, &identity.User{ID: uid, Email: "u2@x.com", PasswordHash: "h", Locale: "en", Timezone: "UTC", CreatedAt: time.Now().UTC()}))
+	wsID := "aaaaaaaa-0000-0000-0000-000000000001"
+	require.NoError(t, wsRepo.Create(ctx, &workspace.Workspace{ID: wsID, Name: "Org", Slug: "org-1", CreatedBy: uid, CreatedAt: time.Now().UTC()}))
+	require.NoError(t, memRepo.Create(ctx, &workspace.Member{ID: "bbbbbbbb-0000-0000-0000-000000000001", WorkspaceID: wsID, UserID: uid, Role: workspace.RoleOwner, Status: workspace.StatusActive, CreatedAt: time.Now().UTC()}))
+
+	unit := &workspace.OrgUnit{ID: "cccccccc-0000-0000-0000-000000000001", WorkspaceID: wsID, Name: "Sales", SortOrder: 1, CreatedAt: time.Now().UTC()}
+	require.NoError(t, unitRepo.Create(ctx, unit))
+	child := &workspace.OrgUnit{ID: "cccccccc-0000-0000-0000-000000000002", WorkspaceID: wsID, ParentID: &unit.ID, Name: "West", CreatedAt: time.Now().UTC()}
+	require.NoError(t, unitRepo.Create(ctx, child))
+	units, err := unitRepo.ListByWorkspace(ctx, wsID)
+	require.NoError(t, err)
+	require.Len(t, units, 2)
+	ok, err := unitRepo.Exists(ctx, wsID, unit.ID)
+	require.NoError(t, err)
+	require.True(t, ok)
+
+	pos := &workspace.Position{ID: "dddddddd-0000-0000-0000-000000000001", WorkspaceID: wsID, Title: "Manager", CreatedAt: time.Now().UTC()}
+	require.NoError(t, posRepo.Create(ctx, pos))
+	positions, err := posRepo.ListByWorkspace(ctx, wsID)
+	require.NoError(t, err)
+	require.Len(t, positions, 1)
+
+	require.NoError(t, memRepo.Assign(ctx, wsID, uid, &unit.ID, &pos.ID))
+	m, err := memRepo.Find(ctx, wsID, uid)
+	require.NoError(t, err)
+	require.NotNil(t, m.OrgUnitID)
+	require.Equal(t, unit.ID, *m.OrgUnitID)
+	require.NotNil(t, m.PositionID)
+	require.Equal(t, pos.ID, *m.PositionID)
+}
+
 func TestMemberRepositoryCreateDuplicateReturnsErrAlreadyMember(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in -short mode")

@@ -81,6 +81,17 @@ func (f *fakeMembersHTTP) ListByWorkspace(_ context.Context, wsID string) ([]*do
 	return out, nil
 }
 
+func (f *fakeMembersHTTP) Assign(_ context.Context, wsID, userID string, orgUnitID, positionID *string) error {
+	for _, m := range f.list {
+		if m.WorkspaceID == wsID && m.UserID == userID {
+			m.OrgUnitID = orgUnitID
+			m.PositionID = positionID
+			return nil
+		}
+	}
+	return domainws.ErrNotMember
+}
+
 // fakeInvitesHTTP is an in-memory InviteRepository for http package tests.
 type fakeInvitesHTTP struct {
 	byToken  map[string]*domainws.Invite

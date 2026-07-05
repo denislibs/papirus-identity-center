@@ -44,6 +44,42 @@ func (f *fakeMembers) ListByWorkspace(_ context.Context, wsID string) ([]*domain
 	for _, m := range f.list { if m.WorkspaceID == wsID { cp := *m; out = append(out, &cp) } }
 	return out, nil
 }
+func (f *fakeMembers) Assign(_ context.Context, wsID, userID string, orgUnitID, positionID *string) error {
+	for _, m := range f.list {
+		if m.WorkspaceID == wsID && m.UserID == userID {
+			m.OrgUnitID = orgUnitID
+			m.PositionID = positionID
+			return nil
+		}
+	}
+	return domain.ErrNotMember
+}
+
+type fakeOrgUnits struct{ list []*domain.OrgUnit }
+
+func (f *fakeOrgUnits) Create(_ context.Context, u *domain.OrgUnit) error { cp := *u; f.list = append(f.list, &cp); return nil }
+func (f *fakeOrgUnits) ListByWorkspace(_ context.Context, wsID string) ([]*domain.OrgUnit, error) {
+	var out []*domain.OrgUnit
+	for _, u := range f.list { if u.WorkspaceID == wsID { cp := *u; out = append(out, &cp) } }
+	return out, nil
+}
+func (f *fakeOrgUnits) Exists(_ context.Context, wsID, id string) (bool, error) {
+	for _, u := range f.list { if u.WorkspaceID == wsID && u.ID == id { return true, nil } }
+	return false, nil
+}
+
+type fakePositions struct{ list []*domain.Position }
+
+func (f *fakePositions) Create(_ context.Context, p *domain.Position) error { cp := *p; f.list = append(f.list, &cp); return nil }
+func (f *fakePositions) ListByWorkspace(_ context.Context, wsID string) ([]*domain.Position, error) {
+	var out []*domain.Position
+	for _, p := range f.list { if p.WorkspaceID == wsID { cp := *p; out = append(out, &cp) } }
+	return out, nil
+}
+func (f *fakePositions) Exists(_ context.Context, wsID, id string) (bool, error) {
+	for _, p := range f.list { if p.WorkspaceID == wsID && p.ID == id { return true, nil } }
+	return false, nil
+}
 
 type fakeInvites struct{ byToken map[string]*domain.Invite; accepted map[string]bool }
 
