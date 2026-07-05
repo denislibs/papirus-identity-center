@@ -25,9 +25,9 @@ func NewIdentityHandlers(register *appidentity.RegisterUser, verify *appidentity
 }
 
 // Register mounts the identity routes on r.
+// Note: GET /verify-email is handled by PublicPageHandlers (HTML page) — not registered here.
 func (h *IdentityHandlers) Register(r chi.Router) {
 	r.Post("/register", h.handleRegister)
-	r.Get("/verify-email", h.handleVerifyEmail)
 	r.Post("/password-reset/request", h.handleRequestReset)
 	r.Post("/password-reset/confirm", h.handleConfirmReset)
 }
@@ -70,15 +70,6 @@ func (h *IdentityHandlers) handleRegister(w http.ResponseWriter, r *http.Request
 		return
 	}
 	writeJSON(w, http.StatusCreated, map[string]string{"id": u.ID, "email": u.Email})
-}
-
-func (h *IdentityHandlers) handleVerifyEmail(w http.ResponseWriter, r *http.Request) {
-	token := r.URL.Query().Get("token")
-	if err := h.verify.Execute(r.Context(), token); err != nil {
-		writeError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": "verified"})
 }
 
 func (h *IdentityHandlers) handleRequestReset(w http.ResponseWriter, r *http.Request) {
