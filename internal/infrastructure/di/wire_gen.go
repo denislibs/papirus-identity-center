@@ -51,8 +51,9 @@ func InitializeApp(ctx context.Context, cfg config.Config) (*App, error) {
 	hubOAuth := provideHubOAuth(cfg, hydraClient)
 	hubSessionStore := provideHubStore(client)
 	hubAuthHandlers := provideHubAuthHandlers(hubOAuth, hubSessionStore)
-	hubHandlers := provideHubHandlers(userRepository)
-	server := provideServer(cfg, identityHandlers, authHandlers, sessionHandlers, hydraClient, hubAuthHandlers, hubHandlers, hubSessionStore)
+	hubHandlers := provideHubHandlers(userRepository, sessionRepository, hydraClient)
+	publicPageHandlers := providePublicPages(cfg, userRepository, passwordHasher, verificationTokens, mailer)
+	server := provideServer(cfg, identityHandlers, authHandlers, sessionHandlers, hydraClient, hubAuthHandlers, hubHandlers, hubSessionStore, publicPageHandlers)
 	app := &App{
 		Config: cfg,
 		DB:     pool,
@@ -135,12 +136,20 @@ func provideHubAuthHandlers(oauth http2.HubOAuth, store identity.HubSessionStore
 	return http2.NewHubAuthHandlers(oauth, store)
 }
 
-func provideHubHandlers(users identity.UserRepository) *http2.HubHandlers {
-	return http2.NewHubHandlers(identity2.NewGetProfile(users), http2.MustLoadTemplates())
+func provideHubHandlers(users identity.UserRepository, sessions identity.SessionRepository,
+	hydraClient identity.HydraClient) *http2.HubHandlers {
+	return http2.NewHubHandlers(identity2.NewGetProfile(users), identity2.NewListSessions(sessions), identity2.NewTerminateSession(sessions, hydraClient), identity2.NewTerminateAllSessions(sessions, hydraClient), http2.MustLoadTemplates())
+}
+
+func providePublicPages(cfg config.Config, users identity.UserRepository,
+	hasher identity.PasswordHasher, tokens identity.VerificationTokens,
+	mailer identity.Mailer) *http2.PublicPageHandlers {
+	return http2.NewPublicPageHandlers(identity2.NewRegisterUser(users, hasher, tokens, mailer, cfg.BaseURL), identity2.NewVerifyEmail(users, tokens), identity2.NewRequestPasswordReset(users, tokens, mailer, cfg.BaseURL), identity2.NewResetPassword(users, hasher, tokens), http2.MustLoadTemplates())
 }
 
 func provideServer(cfg config.Config, identity3 *http2.IdentityHandlers, auth *http2.AuthHandlers,
 	sessions *http2.SessionHandlers, hydraClient identity.HydraClient,
-	hubAuth *http2.HubAuthHandlers, hub *http2.HubHandlers, hubStore identity.HubSessionStore) *http.Server {
-	return httpserver.NewServer(":"+cfg.Port, httpserver.NewRouter(identity3, auth, sessions, hydraClient, hubAuth, hub, hubStore))
+	hubAuth *http2.HubAuthHandlers, hub *http2.HubHandlers, hubStore identity.HubSessionStore,
+	public *http2.PublicPageHandlers) *http.Server {
+	return httpserver.NewServer(":"+cfg.Port, httpserver.NewRouter(identity3, auth, sessions, hydraClient, hubAuth, hub, hubStore, public))
 }

@@ -110,14 +110,34 @@ func provideHubAuthHandlers(oauth apphttp.HubOAuth, store domainidentity.HubSess
 	return apphttp.NewHubAuthHandlers(oauth, store)
 }
 
-func provideHubHandlers(users domainidentity.UserRepository) *apphttp.HubHandlers {
-	return apphttp.NewHubHandlers(appidentity.NewGetProfile(users), apphttp.MustLoadTemplates())
+func provideHubHandlers(users domainidentity.UserRepository, sessions domainidentity.SessionRepository,
+	hydraClient domainidentity.HydraClient) *apphttp.HubHandlers {
+	return apphttp.NewHubHandlers(
+		appidentity.NewGetProfile(users),
+		appidentity.NewListSessions(sessions),
+		appidentity.NewTerminateSession(sessions, hydraClient),
+		appidentity.NewTerminateAllSessions(sessions, hydraClient),
+		apphttp.MustLoadTemplates(),
+	)
+}
+
+func providePublicPages(cfg config.Config, users domainidentity.UserRepository,
+	hasher domainidentity.PasswordHasher, tokens domainidentity.VerificationTokens,
+	mailer domainidentity.Mailer) *apphttp.PublicPageHandlers {
+	return apphttp.NewPublicPageHandlers(
+		appidentity.NewRegisterUser(users, hasher, tokens, mailer, cfg.BaseURL),
+		appidentity.NewVerifyEmail(users, tokens),
+		appidentity.NewRequestPasswordReset(users, tokens, mailer, cfg.BaseURL),
+		appidentity.NewResetPassword(users, hasher, tokens),
+		apphttp.MustLoadTemplates(),
+	)
 }
 
 func provideServer(cfg config.Config, identity *apphttp.IdentityHandlers, auth *apphttp.AuthHandlers,
 	sessions *apphttp.SessionHandlers, hydraClient domainidentity.HydraClient,
-	hubAuth *apphttp.HubAuthHandlers, hub *apphttp.HubHandlers, hubStore domainidentity.HubSessionStore) *http.Server {
-	return httpserver.NewServer(":"+cfg.Port, httpserver.NewRouter(identity, auth, sessions, hydraClient, hubAuth, hub, hubStore))
+	hubAuth *apphttp.HubAuthHandlers, hub *apphttp.HubHandlers, hubStore domainidentity.HubSessionStore,
+	public *apphttp.PublicPageHandlers) *http.Server {
+	return httpserver.NewServer(":"+cfg.Port, httpserver.NewRouter(identity, auth, sessions, hydraClient, hubAuth, hub, hubStore, public))
 }
 
 // InitializeApp builds the full application graph.
@@ -138,6 +158,7 @@ func InitializeApp(ctx context.Context, cfg config.Config) (*App, error) {
 		provideHubOAuth,
 		provideHubAuthHandlers,
 		provideHubHandlers,
+		providePublicPages,
 		provideServer,
 		wire.Struct(new(App), "*"),
 	)

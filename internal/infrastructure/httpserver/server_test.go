@@ -19,9 +19,10 @@ func TestRouterServesHealthz(t *testing.T) {
 	sessions := apphttp.NewSessionHandlers(nil, nil, nil)
 	hydraClient := hydra.New("http://localhost:0", nil)
 	hubAuth := apphttp.NewHubAuthHandlers(nil, nil)
-	hub := apphttp.NewHubHandlers(nil, apphttp.MustLoadTemplates())
+	hub := apphttp.NewHubHandlers(nil, nil, nil, nil, apphttp.MustLoadTemplates())
 	hubStore := rdc.NewHubSessionStore(nil, time.Hour)
-	srv := httptest.NewServer(NewRouter(identity, auth, sessions, hydraClient, hubAuth, hub, hubStore))
+	public := apphttp.NewPublicPageHandlers(nil, nil, nil, nil, apphttp.MustLoadTemplates())
+	srv := httptest.NewServer(NewRouter(identity, auth, sessions, hydraClient, hubAuth, hub, hubStore, public))
 	defer srv.Close()
 
 	resp, err := http.Get(srv.URL + "/healthz")
