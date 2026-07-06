@@ -192,11 +192,31 @@ func provideWorkspaceHandlers(cfg config.Config, ws domainws.WorkspaceRepository
 	)
 }
 
+func provideHubWorkspaceHandlers(cfg config.Config, ws domainws.WorkspaceRepository, mem domainws.MemberRepository,
+	inv domainws.InviteRepository, units domainws.OrgUnitRepository, positions domainws.PositionRepository,
+	products domainws.ProductRepository, wp domainws.WorkspaceProductRepository, mailer domainws.WorkspaceMailer) *apphttp.HubWorkspaceHandlers {
+	return apphttp.NewHubWorkspaceHandlers(
+		appws.NewCreateWorkspace(ws, mem),
+		appws.NewListMyWorkspaces(ws),
+		appws.NewListMembers(mem),
+		appws.NewInviteMember(ws, mem, inv, mailer, cfg.BaseURL),
+		appws.NewCreateOrgUnit(mem, units),
+		appws.NewListOrgUnits(mem, units),
+		appws.NewCreatePosition(mem, positions),
+		appws.NewListPositions(mem, positions),
+		appws.NewListProducts(products),
+		appws.NewEnableProduct(mem, products, wp),
+		appws.NewListEnabledProducts(mem, wp),
+		apphttp.MustLoadTemplates(),
+	)
+}
+
 func provideServer(cfg config.Config, identity *apphttp.IdentityHandlers, auth *apphttp.AuthHandlers,
 	sessions *apphttp.SessionHandlers, hydraClient domainidentity.HydraClient,
 	hubAuth *apphttp.HubAuthHandlers, hub *apphttp.HubHandlers, hubStore domainidentity.HubSessionStore,
-	public *apphttp.PublicPageHandlers, wsHandlers *apphttp.WorkspaceHandlers) *http.Server {
-	return httpserver.NewServer(":"+cfg.Port, httpserver.NewRouter(identity, auth, sessions, hydraClient, hubAuth, hub, hubStore, public, wsHandlers))
+	public *apphttp.PublicPageHandlers, wsHandlers *apphttp.WorkspaceHandlers,
+	hubWS *apphttp.HubWorkspaceHandlers) *http.Server {
+	return httpserver.NewServer(":"+cfg.Port, httpserver.NewRouter(identity, auth, sessions, hydraClient, hubAuth, hub, hubStore, public, wsHandlers, hubWS))
 }
 
 // InitializeApp builds the full application graph.
@@ -227,6 +247,7 @@ func InitializeApp(ctx context.Context, cfg config.Config) (*App, error) {
 		provideWorkspaceProductRepo,
 		provideWorkspaceMailer,
 		provideWorkspaceHandlers,
+		provideHubWorkspaceHandlers,
 		provideServer,
 		wire.Struct(new(App), "*"),
 	)

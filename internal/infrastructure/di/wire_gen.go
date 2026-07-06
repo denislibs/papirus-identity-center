@@ -64,7 +64,8 @@ func InitializeApp(ctx context.Context, cfg config.Config) (*App, error) {
 	productRepository := provideProductRepo(pool)
 	workspaceProductRepository := provideWorkspaceProductRepo(pool)
 	workspaceHandlers := provideWorkspaceHandlers(cfg, workspaceRepository, memberRepository, inviteRepository, workspaceMailer, orgUnitRepository, positionRepository, productRepository, workspaceProductRepository)
-	server := provideServer(cfg, identityHandlers, authHandlers, sessionHandlers, hydraClient, hubAuthHandlers, hubHandlers, hubSessionStore, publicPageHandlers, workspaceHandlers)
+	hubWorkspaceHandlers := provideHubWorkspaceHandlers(cfg, workspaceRepository, memberRepository, inviteRepository, orgUnitRepository, positionRepository, productRepository, workspaceProductRepository, workspaceMailer)
+	server := provideServer(cfg, identityHandlers, authHandlers, sessionHandlers, hydraClient, hubAuthHandlers, hubHandlers, hubSessionStore, publicPageHandlers, workspaceHandlers, hubWorkspaceHandlers)
 	app := &App{
 		Config: cfg,
 		DB:     pool,
@@ -200,9 +201,16 @@ func provideWorkspaceHandlers(cfg config.Config, ws workspace.WorkspaceRepositor
 	return http2.NewWorkspaceHandlers(workspace2.NewCreateWorkspace(ws, mem), workspace2.NewListMyWorkspaces(ws), workspace2.NewListMembers(mem), workspace2.NewInviteMember(ws, mem, inv, mailer, cfg.BaseURL), workspace2.NewAcceptInvite(inv, mem), workspace2.NewCreateOrgUnit(mem, orgUnits), workspace2.NewListOrgUnits(mem, orgUnits), workspace2.NewCreatePosition(mem, positions), workspace2.NewListPositions(mem, positions), workspace2.NewAssignMember(mem, orgUnits, positions), workspace2.NewListProducts(products), workspace2.NewEnableProduct(mem, products, wp), workspace2.NewDisableProduct(mem, wp), workspace2.NewListEnabledProducts(mem, wp))
 }
 
+func provideHubWorkspaceHandlers(cfg config.Config, ws workspace.WorkspaceRepository, mem workspace.MemberRepository,
+	inv workspace.InviteRepository, units workspace.OrgUnitRepository, positions workspace.PositionRepository,
+	products workspace.ProductRepository, wp workspace.WorkspaceProductRepository, mailer workspace.WorkspaceMailer) *http2.HubWorkspaceHandlers {
+	return http2.NewHubWorkspaceHandlers(workspace2.NewCreateWorkspace(ws, mem), workspace2.NewListMyWorkspaces(ws), workspace2.NewListMembers(mem), workspace2.NewInviteMember(ws, mem, inv, mailer, cfg.BaseURL), workspace2.NewCreateOrgUnit(mem, units), workspace2.NewListOrgUnits(mem, units), workspace2.NewCreatePosition(mem, positions), workspace2.NewListPositions(mem, positions), workspace2.NewListProducts(products), workspace2.NewEnableProduct(mem, products, wp), workspace2.NewListEnabledProducts(mem, wp), http2.MustLoadTemplates())
+}
+
 func provideServer(cfg config.Config, identity3 *http2.IdentityHandlers, auth *http2.AuthHandlers,
 	sessions *http2.SessionHandlers, hydraClient identity.HydraClient,
 	hubAuth *http2.HubAuthHandlers, hub *http2.HubHandlers, hubStore identity.HubSessionStore,
-	public *http2.PublicPageHandlers, wsHandlers *http2.WorkspaceHandlers) *http.Server {
-	return httpserver.NewServer(":"+cfg.Port, httpserver.NewRouter(identity3, auth, sessions, hydraClient, hubAuth, hub, hubStore, public, wsHandlers))
+	public *http2.PublicPageHandlers, wsHandlers *http2.WorkspaceHandlers,
+	hubWS *http2.HubWorkspaceHandlers) *http.Server {
+	return httpserver.NewServer(":"+cfg.Port, httpserver.NewRouter(identity3, auth, sessions, hydraClient, hubAuth, hub, hubStore, public, wsHandlers, hubWS))
 }
