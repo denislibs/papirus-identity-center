@@ -61,7 +61,9 @@ func InitializeApp(ctx context.Context, cfg config.Config) (*App, error) {
 	workspaceMailer := provideWorkspaceMailer(cfg)
 	orgUnitRepository := provideOrgUnitRepo(pool)
 	positionRepository := providePositionRepo(pool)
-	workspaceHandlers := provideWorkspaceHandlers(cfg, workspaceRepository, memberRepository, inviteRepository, workspaceMailer, orgUnitRepository, positionRepository)
+	productRepository := provideProductRepo(pool)
+	workspaceProductRepository := provideWorkspaceProductRepo(pool)
+	workspaceHandlers := provideWorkspaceHandlers(cfg, workspaceRepository, memberRepository, inviteRepository, workspaceMailer, orgUnitRepository, positionRepository, productRepository, workspaceProductRepository)
 	server := provideServer(cfg, identityHandlers, authHandlers, sessionHandlers, hydraClient, hubAuthHandlers, hubHandlers, hubSessionStore, publicPageHandlers, workspaceHandlers)
 	app := &App{
 		Config: cfg,
@@ -176,6 +178,14 @@ func providePositionRepo(pool *pgxpool.Pool) workspace.PositionRepository {
 	return postgres.NewPositionRepository(pool)
 }
 
+func provideProductRepo(pool *pgxpool.Pool) workspace.ProductRepository {
+	return postgres.NewProductRepository(pool)
+}
+
+func provideWorkspaceProductRepo(pool *pgxpool.Pool) workspace.WorkspaceProductRepository {
+	return postgres.NewWorkspaceProductRepository(pool)
+}
+
 func provideWorkspaceMailer(cfg config.Config) workspace.WorkspaceMailer {
 	if cfg.Mail.Mode == "smtp" {
 		return mail.NewSMTPMailer(cfg.Mail.Host, cfg.Mail.Port, cfg.Mail.User, cfg.Mail.Password, cfg.Mail.From)
@@ -185,8 +195,9 @@ func provideWorkspaceMailer(cfg config.Config) workspace.WorkspaceMailer {
 
 func provideWorkspaceHandlers(cfg config.Config, ws workspace.WorkspaceRepository, mem workspace.MemberRepository,
 	inv workspace.InviteRepository, mailer workspace.WorkspaceMailer,
-	orgUnits workspace.OrgUnitRepository, positions workspace.PositionRepository) *http2.WorkspaceHandlers {
-	return http2.NewWorkspaceHandlers(workspace2.NewCreateWorkspace(ws, mem), workspace2.NewListMyWorkspaces(ws), workspace2.NewListMembers(mem), workspace2.NewInviteMember(ws, mem, inv, mailer, cfg.BaseURL), workspace2.NewAcceptInvite(inv, mem), workspace2.NewCreateOrgUnit(mem, orgUnits), workspace2.NewListOrgUnits(mem, orgUnits), workspace2.NewCreatePosition(mem, positions), workspace2.NewListPositions(mem, positions), workspace2.NewAssignMember(mem, orgUnits, positions))
+	orgUnits workspace.OrgUnitRepository, positions workspace.PositionRepository,
+	products workspace.ProductRepository, wp workspace.WorkspaceProductRepository) *http2.WorkspaceHandlers {
+	return http2.NewWorkspaceHandlers(workspace2.NewCreateWorkspace(ws, mem), workspace2.NewListMyWorkspaces(ws), workspace2.NewListMembers(mem), workspace2.NewInviteMember(ws, mem, inv, mailer, cfg.BaseURL), workspace2.NewAcceptInvite(inv, mem), workspace2.NewCreateOrgUnit(mem, orgUnits), workspace2.NewListOrgUnits(mem, orgUnits), workspace2.NewCreatePosition(mem, positions), workspace2.NewListPositions(mem, positions), workspace2.NewAssignMember(mem, orgUnits, positions), workspace2.NewListProducts(products), workspace2.NewEnableProduct(mem, products, wp), workspace2.NewDisableProduct(mem, wp), workspace2.NewListEnabledProducts(mem, wp))
 }
 
 func provideServer(cfg config.Config, identity3 *http2.IdentityHandlers, auth *http2.AuthHandlers,

@@ -11,18 +11,22 @@ import (
 	domainws "github.com/denislibs/papirus-identity-center/internal/domain/workspace"
 )
 
-// WorkspaceHandlers provides REST endpoints for workspaces, members, invites, and org-structure.
+// WorkspaceHandlers provides REST endpoints for workspaces, members, invites, org-structure, and products.
 type WorkspaceHandlers struct {
-	create         *appws.CreateWorkspace
-	listMine       *appws.ListMyWorkspaces
-	members        *appws.ListMembers
-	invite         *appws.InviteMember
-	accept         *appws.AcceptInvite
-	createOrgUnitUC  *appws.CreateOrgUnit
-	listOrgUnitsUC   *appws.ListOrgUnits
-	createPositionUC *appws.CreatePosition
-	listPositionsUC  *appws.ListPositions
-	assignUC         *appws.AssignMember
+	create              *appws.CreateWorkspace
+	listMine            *appws.ListMyWorkspaces
+	members             *appws.ListMembers
+	invite              *appws.InviteMember
+	accept              *appws.AcceptInvite
+	createOrgUnitUC     *appws.CreateOrgUnit
+	listOrgUnitsUC      *appws.ListOrgUnits
+	createPositionUC    *appws.CreatePosition
+	listPositionsUC     *appws.ListPositions
+	assignUC            *appws.AssignMember
+	listProductsUC      *appws.ListProducts
+	enableProductUC     *appws.EnableProduct
+	disableProductUC    *appws.DisableProduct
+	listEnabledProdsUC  *appws.ListEnabledProducts
 }
 
 func NewWorkspaceHandlers(
@@ -36,18 +40,26 @@ func NewWorkspaceHandlers(
 	createPosition *appws.CreatePosition,
 	listPositions *appws.ListPositions,
 	assign *appws.AssignMember,
+	listProducts *appws.ListProducts,
+	enableProduct *appws.EnableProduct,
+	disableProduct *appws.DisableProduct,
+	listEnabledProducts *appws.ListEnabledProducts,
 ) *WorkspaceHandlers {
 	return &WorkspaceHandlers{
-		create:           create,
-		listMine:         listMine,
-		members:          members,
-		invite:           invite,
-		accept:           accept,
-		createOrgUnitUC:  createOrgUnit,
-		listOrgUnitsUC:   listOrgUnits,
-		createPositionUC: createPosition,
-		listPositionsUC:  listPositions,
-		assignUC:         assign,
+		create:             create,
+		listMine:           listMine,
+		members:            members,
+		invite:             invite,
+		accept:             accept,
+		createOrgUnitUC:    createOrgUnit,
+		listOrgUnitsUC:     listOrgUnits,
+		createPositionUC:   createPosition,
+		listPositionsUC:    listPositions,
+		assignUC:           assign,
+		listProductsUC:     listProducts,
+		enableProductUC:    enableProduct,
+		disableProductUC:   disableProduct,
+		listEnabledProdsUC: listEnabledProducts,
 	}
 }
 
@@ -63,6 +75,10 @@ func (h *WorkspaceHandlers) Register(r chi.Router) {
 	r.Get("/workspaces/{id}/positions", h.listPositions)
 	r.Post("/workspaces/{id}/positions", h.createPosition)
 	r.Put("/workspaces/{id}/members/{userId}/assignment", h.assignMember)
+	r.Get("/products", h.listProducts)
+	r.Get("/workspaces/{id}/products", h.listEnabledProducts)
+	r.Post("/workspaces/{id}/products", h.enableProduct)
+	r.Delete("/workspaces/{id}/products/{key}", h.disableProduct)
 }
 
 // wsErr maps workspace domain errors to HTTP responses.
@@ -81,6 +97,8 @@ func wsErr(w http.ResponseWriter, err error) {
 	case errors.Is(err, domainws.ErrWorkspaceNotFound), errors.Is(err, domainws.ErrInviteNotFound),
 		errors.Is(err, domainws.ErrOrgUnitNotFound), errors.Is(err, domainws.ErrPositionNotFound):
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
+	case errors.Is(err, domainws.ErrProductNotFound):
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "product not found"})
 	case errors.Is(err, domainws.ErrInvalidTitle):
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid title"})
 	default:
@@ -239,6 +257,63 @@ func (h *WorkspaceHandlers) assignMember(w http.ResponseWriter, r *http.Request)
 	}
 	err := h.assignUC.Execute(r.Context(), chi.URLParam(r, "id"), UserIDFromContext(r.Context()), chi.URLParam(r, "userId"), body.OrgUnitID, body.PositionID)
 	if err != nil {
+		wsErr(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *WorkspaceHandlers) listProducts(w http.ResponseWriter, r *http.Request) {
+	list, err := h.listProductsUC.Execute(r.Context())
+	if err != nil {
+		wsErr(w, err)
+		return
+	}
+	type dto struct {
+		Key  string `json:"Key"`
+		Name string `json:"Name"`
+	}
+	out := make([]dto, 0, len(list))
+	for _, p := range list {
+		out = append(out, dto{p.Key, p.Name})
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+func (h *WorkspaceHandlers) listEnabledProducts(w http.ResponseWriter, r *http.Request) {
+	list, err := h.listEnabledProdsUC.Execute(r.Context(), chi.URLParam(r, "id"), UserIDFromContext(r.Context()))
+	if err != nil {
+		wsErr(w, err)
+		return
+	}
+	type dto struct {
+		Key  string `json:"Key"`
+		Name string `json:"Name"`
+	}
+	out := make([]dto, 0, len(list))
+	for _, p := range list {
+		out = append(out, dto{p.Key, p.Name})
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+func (h *WorkspaceHandlers) enableProduct(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		ProductKey string `json:"product_key"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid body"})
+		return
+	}
+	if err := h.enableProductUC.Execute(r.Context(), chi.URLParam(r, "id"), UserIDFromContext(r.Context()), body.ProductKey); err != nil {
+		wsErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]string{"status": "enabled"})
+}
+
+func (h *WorkspaceHandlers) disableProduct(w http.ResponseWriter, r *http.Request) {
+	if err := h.disableProductUC.Execute(r.Context(), chi.URLParam(r, "id"), UserIDFromContext(r.Context()), chi.URLParam(r, "key")); err != nil {
 		wsErr(w, err)
 		return
 	}

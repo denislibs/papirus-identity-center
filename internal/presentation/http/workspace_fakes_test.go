@@ -188,3 +188,51 @@ func (f *fakeWSMailer) SendWorkspaceInvite(_ context.Context, to, ws, link strin
 	f.sent = append(f.sent, struct{ to, ws, link string }{to, ws, link})
 	return nil
 }
+
+// fakeProductsHTTP is an in-memory ProductRepository for http package tests.
+type fakeProductsHTTP struct{ list []*domainws.Product }
+
+func (f *fakeProductsHTTP) ListAll(_ context.Context) ([]*domainws.Product, error) {
+	return f.list, nil
+}
+
+func (f *fakeProductsHTTP) Exists(_ context.Context, key string) (bool, error) {
+	for _, p := range f.list {
+		if p.Key == key {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// fakeWorkspaceProductsHTTP is an in-memory WorkspaceProductRepository for http package tests.
+type fakeWorkspaceProductsHTTP struct {
+	enabled map[string]map[string]bool // wsID -> key -> true
+}
+
+func newFakeWorkspaceProductsHTTP() *fakeWorkspaceProductsHTTP {
+	return &fakeWorkspaceProductsHTTP{enabled: map[string]map[string]bool{}}
+}
+
+func (f *fakeWorkspaceProductsHTTP) Enable(_ context.Context, wsID, key string) error {
+	if f.enabled[wsID] == nil {
+		f.enabled[wsID] = map[string]bool{}
+	}
+	f.enabled[wsID][key] = true
+	return nil
+}
+
+func (f *fakeWorkspaceProductsHTTP) Disable(_ context.Context, wsID, key string) error {
+	if f.enabled[wsID] != nil {
+		delete(f.enabled[wsID], key)
+	}
+	return nil
+}
+
+func (f *fakeWorkspaceProductsHTTP) ListEnabled(_ context.Context, wsID string) ([]*domainws.Product, error) {
+	var out []*domainws.Product
+	for key := range f.enabled[wsID] {
+		out = append(out, &domainws.Product{Key: key, Name: key})
+	}
+	return out, nil
+}

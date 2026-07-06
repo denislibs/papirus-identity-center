@@ -24,6 +24,11 @@ func buildWSAPI(t *testing.T, userID string) (*httptest.Server, *fakeHydra) {
 	mailer := &fakeWSMailer{}
 	units := &fakeOrgUnitsHTTP{}
 	positions := &fakePositionsHTTP{}
+	products := &fakeProductsHTTP{list: []*domainws.Product{
+		{Key: "papyrus", Name: "Papyrus (СЭД)"},
+		{Key: "lite", Name: "Papyrus Lite"},
+	}}
+	wp := newFakeWorkspaceProductsHTTP()
 	hydra := &fakeHydra{introspectActive: true, introspectSubject: userID}
 	h := apphttp.NewWorkspaceHandlers(
 		appws.NewCreateWorkspace(ws, members),
@@ -36,6 +41,10 @@ func buildWSAPI(t *testing.T, userID string) (*httptest.Server, *fakeHydra) {
 		appws.NewCreatePosition(members, positions),
 		appws.NewListPositions(members, positions),
 		appws.NewAssignMember(members, units, positions),
+		appws.NewListProducts(products),
+		appws.NewEnableProduct(members, products, wp),
+		appws.NewDisableProduct(members, wp),
+		appws.NewListEnabledProducts(members, wp),
 	)
 	r := chi.NewRouter()
 	r.Group(func(pr chi.Router) { pr.Use(apphttp.RequireAuth(hydra)); h.Register(pr) })
@@ -118,6 +127,8 @@ func TestListMembersForbiddenForNonMember(t *testing.T) {
 	hydra := &fakeHydra{introspectActive: true, introspectSubject: "stranger"}
 	units := &fakeOrgUnitsHTTP{}
 	positions := &fakePositionsHTTP{}
+	products := &fakeProductsHTTP{}
+	wp := newFakeWorkspaceProductsHTTP()
 	h := apphttp.NewWorkspaceHandlers(
 		appws.NewCreateWorkspace(ws, members),
 		appws.NewListMyWorkspaces(ws),
@@ -129,6 +140,10 @@ func TestListMembersForbiddenForNonMember(t *testing.T) {
 		appws.NewCreatePosition(members, positions),
 		appws.NewListPositions(members, positions),
 		appws.NewAssignMember(members, units, positions),
+		appws.NewListProducts(products),
+		appws.NewEnableProduct(members, products, wp),
+		appws.NewDisableProduct(members, wp),
+		appws.NewListEnabledProducts(members, wp),
 	)
 	r := chi.NewRouter()
 	r.Group(func(pr chi.Router) { pr.Use(apphttp.RequireAuth(hydra)); h.Register(pr) })
@@ -291,6 +306,8 @@ func TestCreateOrgUnitForbiddenForNonManager(t *testing.T) {
 
 	// Build a server whose Hydra returns "member-2".
 	hydra := &fakeHydra{introspectActive: true, introspectSubject: "member-2"}
+	products2 := &fakeProductsHTTP{}
+	wp2 := newFakeWorkspaceProductsHTTP()
 	h := apphttp.NewWorkspaceHandlers(
 		appws.NewCreateWorkspace(ws, members),
 		appws.NewListMyWorkspaces(ws),
@@ -302,6 +319,10 @@ func TestCreateOrgUnitForbiddenForNonManager(t *testing.T) {
 		appws.NewCreatePosition(members, positions),
 		appws.NewListPositions(members, positions),
 		appws.NewAssignMember(members, units, positions),
+		appws.NewListProducts(products2),
+		appws.NewEnableProduct(members, products2, wp2),
+		appws.NewDisableProduct(members, wp2),
+		appws.NewListEnabledProducts(members, wp2),
 	)
 	r := chi.NewRouter()
 	r.Group(func(pr chi.Router) { pr.Use(apphttp.RequireAuth(hydra)); h.Register(pr) })
@@ -353,4 +374,142 @@ func TestAssignMemberEndpoint(t *testing.T) {
 	require.NoError(t, err)
 	assignResp.Body.Close()
 	require.Equal(t, http.StatusNoContent, assignResp.StatusCode)
+}
+
+func TestListProductsEndpoint(t *testing.T) {
+	srv, _ := buildWSAPI(t, "user-1")
+	defer srv.Close()
+
+	req, _ := http.NewRequest(http.MethodGet, srv.URL+"/products", nil)
+	req.Header.Set("Authorization", "Bearer t")
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	var list []map[string]any
+	json.NewDecoder(resp.Body).Decode(&list)
+	resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.Len(t, list, 2)
+}
+
+func TestEnableProductEndpoint(t *testing.T) {
+	srv, _ := buildWSAPI(t, "owner-1")
+	defer srv.Close()
+	wsID := createWorkspaceViaAPI(t, srv.URL, "t", "Prod Corp")
+
+	// POST /workspaces/{id}/products → 201
+	body, _ := json.Marshal(map[string]string{"product_key": "papyrus"})
+	req, _ := http.NewRequest(http.MethodPost, srv.URL+"/workspaces/"+wsID+"/products", bytes.NewReader(body))
+	req.Header.Set("Authorization", "Bearer t")
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	resp.Body.Close()
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
+
+	// GET /workspaces/{id}/products → 200 with 1 item
+	req2, _ := http.NewRequest(http.MethodGet, srv.URL+"/workspaces/"+wsID+"/products", nil)
+	req2.Header.Set("Authorization", "Bearer t")
+	resp2, err := http.DefaultClient.Do(req2)
+	require.NoError(t, err)
+	var list []map[string]any
+	json.NewDecoder(resp2.Body).Decode(&list)
+	resp2.Body.Close()
+	require.Equal(t, http.StatusOK, resp2.StatusCode)
+	require.Len(t, list, 1)
+	require.Equal(t, "papyrus", list[0]["Key"])
+}
+
+func TestEnableProductForbiddenForNonManager(t *testing.T) {
+	members := newFakeMembersHTTP()
+	ws := newFakeWSHTTP(members)
+	invites := newFakeInvitesHTTP()
+	mailer := &fakeWSMailer{}
+	units := &fakeOrgUnitsHTTP{}
+	positions := &fakePositionsHTTP{}
+	products := &fakeProductsHTTP{list: []*domainws.Product{{Key: "papyrus", Name: "Papyrus"}}}
+	wp := newFakeWorkspaceProductsHTTP()
+
+	w, err := appws.NewCreateWorkspace(ws, members).Execute(context.Background(), "owner-1", "Corp")
+	require.NoError(t, err)
+	require.NoError(t, members.Create(context.Background(), &domainws.Member{
+		ID: "m2", WorkspaceID: w.ID, UserID: "member-2",
+		Role: domainws.RoleMember, Status: domainws.StatusActive,
+	}))
+
+	hydra := &fakeHydra{introspectActive: true, introspectSubject: "member-2"}
+	h := apphttp.NewWorkspaceHandlers(
+		appws.NewCreateWorkspace(ws, members),
+		appws.NewListMyWorkspaces(ws),
+		appws.NewListMembers(members),
+		appws.NewInviteMember(ws, members, invites, mailer, "https://acc.example"),
+		appws.NewAcceptInvite(invites, members),
+		appws.NewCreateOrgUnit(members, units),
+		appws.NewListOrgUnits(members, units),
+		appws.NewCreatePosition(members, positions),
+		appws.NewListPositions(members, positions),
+		appws.NewAssignMember(members, units, positions),
+		appws.NewListProducts(products),
+		appws.NewEnableProduct(members, products, wp),
+		appws.NewDisableProduct(members, wp),
+		appws.NewListEnabledProducts(members, wp),
+	)
+	r := chi.NewRouter()
+	r.Group(func(pr chi.Router) { pr.Use(apphttp.RequireAuth(hydra)); h.Register(pr) })
+	srv := httptest.NewServer(r)
+	defer srv.Close()
+
+	body, _ := json.Marshal(map[string]string{"product_key": "papyrus"})
+	req, _ := http.NewRequest(http.MethodPost, srv.URL+"/workspaces/"+w.ID+"/products", bytes.NewReader(body))
+	req.Header.Set("Authorization", "Bearer t")
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	resp.Body.Close()
+	require.Equal(t, http.StatusForbidden, resp.StatusCode)
+}
+
+func TestEnableUnknownProductReturns404(t *testing.T) {
+	srv, _ := buildWSAPI(t, "owner-1")
+	defer srv.Close()
+	wsID := createWorkspaceViaAPI(t, srv.URL, "t", "Unknown Prod Corp")
+
+	body, _ := json.Marshal(map[string]string{"product_key": "ghost"})
+	req, _ := http.NewRequest(http.MethodPost, srv.URL+"/workspaces/"+wsID+"/products", bytes.NewReader(body))
+	req.Header.Set("Authorization", "Bearer t")
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	resp.Body.Close()
+	require.Equal(t, http.StatusNotFound, resp.StatusCode)
+}
+
+func TestDisableProductEndpoint(t *testing.T) {
+	srv, _ := buildWSAPI(t, "owner-1")
+	defer srv.Close()
+	wsID := createWorkspaceViaAPI(t, srv.URL, "t", "Disable Corp")
+
+	// Enable first
+	body, _ := json.Marshal(map[string]string{"product_key": "papyrus"})
+	req, _ := http.NewRequest(http.MethodPost, srv.URL+"/workspaces/"+wsID+"/products", bytes.NewReader(body))
+	req.Header.Set("Authorization", "Bearer t")
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	resp.Body.Close()
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
+
+	// DELETE /workspaces/{id}/products/{key} → 204
+	req2, _ := http.NewRequest(http.MethodDelete, srv.URL+"/workspaces/"+wsID+"/products/papyrus", nil)
+	req2.Header.Set("Authorization", "Bearer t")
+	resp2, err := http.DefaultClient.Do(req2)
+	require.NoError(t, err)
+	resp2.Body.Close()
+	require.Equal(t, http.StatusNoContent, resp2.StatusCode)
+
+	// GET should now be empty
+	req3, _ := http.NewRequest(http.MethodGet, srv.URL+"/workspaces/"+wsID+"/products", nil)
+	req3.Header.Set("Authorization", "Bearer t")
+	resp3, err := http.DefaultClient.Do(req3)
+	require.NoError(t, err)
+	var list []map[string]any
+	json.NewDecoder(resp3.Body).Decode(&list)
+	resp3.Body.Close()
+	require.Equal(t, http.StatusOK, resp3.StatusCode)
+	require.Len(t, list, 0)
 }

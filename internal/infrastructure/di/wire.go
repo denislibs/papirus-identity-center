@@ -155,6 +155,14 @@ func providePositionRepo(pool *pgxpool.Pool) domainws.PositionRepository {
 	return pgc.NewPositionRepository(pool)
 }
 
+func provideProductRepo(pool *pgxpool.Pool) domainws.ProductRepository {
+	return pgc.NewProductRepository(pool)
+}
+
+func provideWorkspaceProductRepo(pool *pgxpool.Pool) domainws.WorkspaceProductRepository {
+	return pgc.NewWorkspaceProductRepository(pool)
+}
+
 func provideWorkspaceMailer(cfg config.Config) domainws.WorkspaceMailer {
 	if cfg.Mail.Mode == "smtp" {
 		return mail.NewSMTPMailer(cfg.Mail.Host, cfg.Mail.Port, cfg.Mail.User, cfg.Mail.Password, cfg.Mail.From)
@@ -164,7 +172,8 @@ func provideWorkspaceMailer(cfg config.Config) domainws.WorkspaceMailer {
 
 func provideWorkspaceHandlers(cfg config.Config, ws domainws.WorkspaceRepository, mem domainws.MemberRepository,
 	inv domainws.InviteRepository, mailer domainws.WorkspaceMailer,
-	orgUnits domainws.OrgUnitRepository, positions domainws.PositionRepository) *apphttp.WorkspaceHandlers {
+	orgUnits domainws.OrgUnitRepository, positions domainws.PositionRepository,
+	products domainws.ProductRepository, wp domainws.WorkspaceProductRepository) *apphttp.WorkspaceHandlers {
 	return apphttp.NewWorkspaceHandlers(
 		appws.NewCreateWorkspace(ws, mem),
 		appws.NewListMyWorkspaces(ws),
@@ -176,6 +185,10 @@ func provideWorkspaceHandlers(cfg config.Config, ws domainws.WorkspaceRepository
 		appws.NewCreatePosition(mem, positions),
 		appws.NewListPositions(mem, positions),
 		appws.NewAssignMember(mem, orgUnits, positions),
+		appws.NewListProducts(products),
+		appws.NewEnableProduct(mem, products, wp),
+		appws.NewDisableProduct(mem, wp),
+		appws.NewListEnabledProducts(mem, wp),
 	)
 }
 
@@ -210,6 +223,8 @@ func InitializeApp(ctx context.Context, cfg config.Config) (*App, error) {
 		provideInviteRepo,
 		provideOrgUnitRepo,
 		providePositionRepo,
+		provideProductRepo,
+		provideWorkspaceProductRepo,
 		provideWorkspaceMailer,
 		provideWorkspaceHandlers,
 		provideServer,
