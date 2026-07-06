@@ -101,3 +101,41 @@ func (f *fakeMailer) SendWorkspaceInvite(_ context.Context, to, ws, link string)
 // slug helper mirror for assertions
 func slugContains(s, sub string) bool { return strings.Contains(s, sub) }
 var _ = time.Now
+
+type fakeProducts struct{ list []*domain.Product }
+
+func (f *fakeProducts) ListAll(_ context.Context) ([]*domain.Product, error) { return f.list, nil }
+func (f *fakeProducts) Exists(_ context.Context, key string) (bool, error) {
+	for _, p := range f.list {
+		if p.Key == key {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+type fakeWorkspaceProducts struct{ enabled map[string]map[string]bool } // wsID -> key -> true
+
+func newFakeWorkspaceProducts() *fakeWorkspaceProducts {
+	return &fakeWorkspaceProducts{enabled: map[string]map[string]bool{}}
+}
+func (f *fakeWorkspaceProducts) Enable(_ context.Context, wsID, key string) error {
+	if f.enabled[wsID] == nil {
+		f.enabled[wsID] = map[string]bool{}
+	}
+	f.enabled[wsID][key] = true
+	return nil
+}
+func (f *fakeWorkspaceProducts) Disable(_ context.Context, wsID, key string) error {
+	if f.enabled[wsID] != nil {
+		delete(f.enabled[wsID], key)
+	}
+	return nil
+}
+func (f *fakeWorkspaceProducts) ListEnabled(_ context.Context, wsID string) ([]*domain.Product, error) {
+	var out []*domain.Product
+	for key := range f.enabled[wsID] {
+		out = append(out, &domain.Product{Key: key, Name: key})
+	}
+	return out, nil
+}
