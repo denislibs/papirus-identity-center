@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Workspace — Papyrus</title></head>
+<body>
+  <p><a href="/account/workspaces">← Workspaces</a></p>
+
+  <h2>Members</h2>
+  <ul>{{range .Members}}<li>{{.UserID}} — {{.Role}} ({{.Status}})</li>{{end}}</ul>
+  <form method="post" action="/account/workspaces/{{.WorkspaceID}}/invites">
+    <input type="email" name="email" placeholder="email" required>
+    <select name="role"><option value="member">member</option><option value="admin">admin</option></select>
+    <button type="submit">Invite</button>
+  </form>
+
+  <h2>Departments</h2>
+  <ul>{{range .Units}}<li>{{.Name}}</li>{{end}}</ul>
+  <form method="post" action="/account/workspaces/{{.WorkspaceID}}/org-units">
+    <input name="name" placeholder="department" required><button type="submit">Add</button>
+  </form>
+
+  <h2>Positions</h2>
+  <ul>{{range .Positions}}<li>{{.Title}}</li>{{end}}</ul>
+  <form method="post" action="/account/workspaces/{{.WorkspaceID}}/positions">
+    <input name="title" placeholder="position" required><button type="submit">Add</button>
+  </form>
+
+  <h2>Products</h2>
+  <ul>{{range .Enabled}}<li>{{.Name}} (enabled)</li>{{end}}</ul>
+  <form method="post" action="/account/workspaces/{{.WorkspaceID}}/products">
+    <select name="product_key">{{range .Registry}}<option value="{{.Key}}">{{.Name}}</option>{{end}}</select>
+    <button type="submit">Enable</button>
+  </form>
+</body>
+</html>
